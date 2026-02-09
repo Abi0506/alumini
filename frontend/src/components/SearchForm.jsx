@@ -173,12 +173,12 @@ export default function SearchForm({ onSearch, loading }) {
           <label htmlFor="email" className="form-label fw-bold">Email</label>
           <input
             id="email"
-            type="email"
+            type="text"
             className="form-control"
             name="email"
             value={formData.email}
             onChange={handleChange}
-            placeholder="e.g. example@gmail.com"
+            placeholder="e.g. example@gmail.com or partial search"
           />
         </div>
 

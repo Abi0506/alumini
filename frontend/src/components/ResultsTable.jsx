@@ -34,16 +34,16 @@ export default function ResultsTable({ results, onEdit, hasSearched }) {
         <tbody>
           {results.map((item) => (
             <tr key={item.id}>
-              <td className="small fw-semibold">{item.id}</td>
-              <td className="fw-semibold">{item.name || "-"}</td>
-              <td className="small">{item.dept || "-"}</td>
-              <td className="small">{item.year || "-"}</td>
-              <td className="small">{item.location || "-"}</td>
-              <td className="small">{item.company || "-"}</td>
+              <td className="small fw-semibold">{item.id || "not available"}</td>
+              <td className="fw-semibold">{item.name || "not available"}</td>
+              <td className="small">{item.dept || "not available"}</td>
+              <td className="small">{item.year || "not available"}</td>
+              <td className="small">{item.location || "not available"}</td>
+              <td className="small">{item.company || "not available"}</td>
               <td className="small text-truncate" style={{ maxWidth: "160px" }}>
-                {item.email || "-"}
+                {item.email || "not available"}
               </td>
-              <td className="small">{item.phone || "-"}</td>
+              <td className="small">{item.phone || "not available"}</td>
 
               <td className="text-end">
                 <button

@@ -21,6 +21,43 @@ export default function AlumniDirectory() {
   const [rowsPerPage, setRowsPerPage] = useState(10);
   const [hasSearched, setHasSearched] = useState(false);
 
+  const normalizeEmail = (value = "") => String(value || "").trim().toLowerCase();
+  const normalizePhone = (value = "") => String(value || "").replace(/\D/g, "");
+  const getMatchScore = (candidate, query) => {
+    if (!query) return 0;
+    if (!candidate) return 0;
+    if (candidate.startsWith(query)) return 3;
+    if (candidate.includes(query)) return 1;
+    return 0;
+  };
+
+  const applySmartSort = (filters, data) => {
+    const emailQuery = normalizeEmail(filters?.email || "");
+    const phoneQuery = normalizePhone(filters?.phone || "");
+
+    if (!emailQuery && !phoneQuery) return data;
+
+    return data
+      .map((item, idx) => {
+        const emailScore = getMatchScore(
+          normalizeEmail(item.email || ""),
+          emailQuery
+        );
+        const phoneScore = getMatchScore(
+          normalizePhone(item.phone || ""),
+          phoneQuery
+        );
+
+        return {
+          item,
+          idx,
+          score: Math.max(emailScore, phoneScore) + emailScore + phoneScore,
+        };
+      })
+      .sort((a, b) => b.score - a.score || a.idx - b.idx)
+      .map((entry) => entry.item);
+  };
+
   const handleSearch = async (filters) => {
     setHasSearched(true);
     setLoading(true);
@@ -42,7 +79,8 @@ export default function AlumniDirectory() {
         alumniData = response.data || [];
       }
 
-      setResults(Array.isArray(alumniData) ? alumniData : []);
+      const normalized = Array.isArray(alumniData) ? alumniData : [];
+      setResults(applySmartSort(filters, normalized));
     } catch (err) {
       console.error("Search failed:", err);
       setErrorMsg(err.message || "Search failed. Please try again.");
@@ -84,13 +122,15 @@ export default function AlumniDirectory() {
       <div className="app-shell">
         <header className="hero">
           <div className="container hero__content">
-            <div>
-              <span className="hero__eyebrow">Alumni Intelligence</span>
-              <h1 className="hero__title">Alumni Directory</h1>
-              <p className="hero__subtitle">
-                Search, update, and grow your alumni network with a clean
-                workflow built for quick lookups and accurate records.
-              </p>
+            <div className="hero__brand">
+              <img
+                src="/psg-logo.png"
+                alt="PSG Institute of Technology and Applied Research"
+                className="hero__logo"
+              />
+              <div className="hero__brand-name">
+                PSG Institute of Technology and Applied Research
+              </div>
             </div>
             <div className="hero__actions">
               <button
@@ -119,102 +159,89 @@ export default function AlumniDirectory() {
             <SearchForm onSearch={handleSearch} loading={loading} />
           </div>
 
-          <div className="stats-grid mb-4">
-            <div className="stat-card">
-              <h3>{results.length}</h3>
-              <p>Total matches</p>
-            </div>
-            <div className="stat-card">
-              <h3>
-                {hasSearched ? visibleResults.length : 0} / {rowsPerPage}
-              </h3>
-              <p>Showing per page</p>
-            </div>
-            <div className="stat-card">
-              <h3>{loading ? "Searching" : hasSearched ? "Ready" : "Idle"}</h3>
-              <p>Search status</p>
-            </div>
-          </div>
-
-          {errorMsg && (
-            <div
-              className="alert alert-danger alert-dismissible fade show rounded-4"
-              role="alert"
-            >
-              {errorMsg}
-              <button
-                type="button"
-                className="btn-close"
-                onClick={() => setErrorMsg("")}
-                aria-label="Close"
-              ></button>
-            </div>
-          )}
-
-          <div className="results-header mb-3">
-            <h5 className="mb-0 fw-semibold">
-              Results
-              {results.length > 0 && (
-                <span className="badge-soft ms-2">
-                  {visibleResults.length} / {results.length}
-                </span>
+          {hasSearched && (
+            <>
+              {errorMsg && (
+                <div
+                  className="alert alert-danger alert-dismissible fade show rounded-4"
+                  role="alert"
+                >
+                  {errorMsg}
+                  <button
+                    type="button"
+                    className="btn-close"
+                    onClick={() => setErrorMsg("")}
+                    aria-label="Close"
+                  ></button>
+                </div>
               )}
-            </h5>
 
-            <div className="d-flex align-items-center gap-2">
-              <label
-                htmlFor="rowsPerPage"
-                className="form-label mb-0 small fw-semibold text-muted"
-              >
-                Show
-              </label>
+              <div className="results-header mb-3">
+                <h5 className="mb-0 fw-semibold">
+                  Results
+                  {results.length > 0 && (
+                    <span className="badge-soft ms-2">
+                      {visibleResults.length} / {results.length}
+                    </span>
+                  )}
+                </h5>
 
-              <select
-                id="rowsPerPage"
-                className="form-select form-select-sm"
-                value={rowsPerPage}
-                onChange={(e) => setRowsPerPage(Number(e.target.value))}
-                style={{ width: "90px" }}
-              >
-                <option value={5}>5</option>
-                <option value={10}>10</option>
-                <option value={15}>15</option>
-                <option value={20}>20</option>
-                <option value={50}>50</option>
-                <option value={100}>100</option>
-              </select>
-            </div>
-          </div>
+                <div className="d-flex align-items-center gap-2">
+                  <label
+                    htmlFor="rowsPerPage"
+                    className="form-label mb-0 small fw-semibold text-muted"
+                  >
+                    Show
+                  </label>
 
-          <div
-            className="results-panel overflow-auto"
-            style={{
-              maxHeight: "calc(100vh - 320px)",
-              minHeight: "420px",
-            }}
-          >
-            {loading ? (
-              <div className="d-flex justify-content-center align-items-center h-100 py-5">
-                <div className="text-center">
-                  <div
-                    className="spinner-border text-primary mb-3"
-                    role="status"
-                    style={{ width: "3rem", height: "3rem" }}
-                  />
-                  <p className="text-muted mb-0">Searching...</p>
+                  <select
+                    id="rowsPerPage"
+                    className="form-select form-select-sm"
+                    value={rowsPerPage}
+                    onChange={(e) => setRowsPerPage(Number(e.target.value))}
+                    style={{ width: "90px" }}
+                  >
+                    <option value={5}>5</option>
+                    <option value={10}>10</option>
+                    <option value={15}>15</option>
+                    <option value={20}>20</option>
+                    <option value={50}>50</option>
+                    <option value={100}>100</option>
+                  </select>
                 </div>
               </div>
-            ) : (
-              <ResultsTable
-                results={visibleResults}
-                hasSearched={hasSearched}
-                onEdit={(item) => {
-                  setSelectedAlumni(item);
-                  setModalOpen(true);
+
+              <div
+                className="results-panel overflow-auto"
+                style={{
+                  maxHeight: "calc(100vh - 320px)",
+                  minHeight: "420px",
                 }}
-              />
-            )}
-          </div>
+              >
+                {loading ? (
+                  <div className="d-flex justify-content-center align-items-center h-100 py-5">
+                    <div className="text-center">
+                      <div
+                        className="spinner-border text-primary mb-3"
+                        role="status"
+                        style={{ width: "3rem", height: "3rem" }}
+                      />
+                      <p className="text-muted mb-0">Searching...</p>
+                    </div>
+                  </div>
+                ) : (
+                  <ResultsTable
+                    results={visibleResults}
+                    hasSearched={hasSearched}
+                    onEdit={(item) => {
+                      setSelectedAlumni(item);
+                      setModalOpen(true);
+                    }}
+                  />
+                )}
+              </div>
+            </>
+          )}
         </main>
       </div>
 

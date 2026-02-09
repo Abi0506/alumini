@@ -24,10 +24,6 @@ export default function AlumniModal({ isOpen, onClose, onSave, initialData }) {
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    if (!form.id?.trim()) {
-      alert('ID is required');
-      return;
-    }
     onSave(form);
   };
 
@@ -40,12 +36,11 @@ export default function AlumniModal({ isOpen, onClose, onSave, initialData }) {
         <Form onSubmit={handleSubmit}>
           <Row className="g-3">
             <Col md={6}>
-              <Form.Label>ID <span className="text-danger">*</span></Form.Label>
+              <Form.Label>ID</Form.Label>
               <Form.Control
                 name="id"
                 value={form.id}
                 onChange={handleChange}
-                required
                 disabled={!!initialData} // prevent changing ID on edit
               />
             </Col>

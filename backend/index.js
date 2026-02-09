@@ -14,7 +14,7 @@ app.use(cors(corsOptions));
 const alumniRouter = require('./alumni');
 
 app.use('/alumni', alumniRouter);
-const PORT  = 8000;
+const PORT  = 5000;
 
 app.listen(PORT , ()=>{
     console.log(`Server runnning at http://localhost:${PORT}`);
