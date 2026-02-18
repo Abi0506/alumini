@@ -11,6 +11,7 @@ export default function SearchForm({ onSearch, loading }) {
     phone: '',
     email: '',
     dept: '',
+    designation: '',
     year: '',
     address: '',
     company: '',
@@ -48,7 +49,7 @@ export default function SearchForm({ onSearch, loading }) {
   const handleReset = () => {
     setFormData({
       id: '', roll: '', name: '', phone: '', email: '', dept: '',
-      year: '', address: '', company: '', location: ''
+      designation: '', year: '', address: '', company: '', location: ''
     });
     onSearch({}); // reset to show all (or do nothing)
   };
@@ -140,6 +141,19 @@ export default function SearchForm({ onSearch, loading }) {
             value={formData.year}
             onChange={handleChange}
             placeholder="e.g. 1991"
+          />
+        </div>
+
+        <div className="col-md-6">
+          <label htmlFor="designation" className="form-label fw-bold">Designation</label>
+          <input
+            id="designation"
+            type="text"
+            className="form-control"
+            name="designation"
+            value={formData.designation}
+            onChange={handleChange}
+            placeholder="e.g. Software Engineer"
           />
         </div>
 

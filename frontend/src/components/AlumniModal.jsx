@@ -1,22 +1,60 @@
 import React, { useState, useEffect } from 'react';
 import { Modal, Button, Form, Row, Col } from 'react-bootstrap';
+import { getDepartments } from '../api/api';
 
 export default function AlumniModal({ isOpen, onClose, onSave, initialData }) {
   const [form, setForm] = useState({
-    id: '', roll: '', name: '', phone: '', email: '', dept: '',
+    id: '', roll: '', name: '', phone: '', email: '', dept: '', designation: '',
     year: '', address: '', company: '', location: ''
   });
+  const [departments, setDepartments] = useState([]);
+  const [deptLoading, setDeptLoading] = useState(true);
+  const [deptError, setDeptError] = useState('');
+  const [customDept, setCustomDept] = useState('');
+  const [showCustomDept, setShowCustomDept] = useState(false);
 
   useEffect(() => {
     if (initialData) {
       setForm(initialData);
     } else {
       setForm({
-        id: '', roll: '', name: '', phone: '', email: '', dept: '',
+        id: '', roll: '', name: '', phone: '', email: '', dept: '', designation: '',
         year: '', address: '', company: '', location: ''
       });
     }
   }, [initialData]);
+
+  useEffect(() => {
+    const fetchDepts = async () => {
+      try {
+        const data = await getDepartments();
+        setDepartments(Array.isArray(data) ? data : []);
+      } catch (err) {
+        console.error('Failed to load departments:', err);
+        setDeptError('Could not load departments');
+      } finally {
+        setDeptLoading(false);
+      }
+    };
+
+    fetchDepts();
+  }, []);
+
+  useEffect(() => {
+    if (!initialData?.dept) {
+      setCustomDept('');
+      setShowCustomDept(false);
+      return;
+    }
+
+    const exists = departments.some((dep) => dep.dept_name === initialData.dept);
+    if (!exists) {
+      setCustomDept(initialData.dept);
+      setShowCustomDept(true);
+    } else {
+      setShowCustomDept(false);
+    }
+  }, [initialData, departments]);
 
   const handleChange = (e) => {
     setForm({ ...form, [e.target.name]: e.target.value });
@@ -24,7 +62,11 @@ export default function AlumniModal({ isOpen, onClose, onSave, initialData }) {
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    onSave(form);
+    const deptValue = customDept?.trim() || form.dept?.trim() || '';
+    onSave({
+      ...form,
+      dept: deptValue
+    });
   };
 
   return (
@@ -51,11 +93,52 @@ export default function AlumniModal({ isOpen, onClose, onSave, initialData }) {
 
             <Col md={6}>
               <Form.Label>Department</Form.Label>
-              <Form.Control name="dept" value={form.dept} onChange={handleChange} />
+              {deptLoading ? (
+                <div className="form-control text-muted">Loading departments...</div>
+              ) : deptError ? (
+                <div className="alert alert-warning small py-2 mb-0">{deptError}</div>
+              ) : (
+                <Form.Select
+                  name="dept"
+                  value={customDept ? '__custom__' : form.dept || ''}
+                  onChange={(e) => {
+                    if (e.target.value === '__custom__') {
+                      setCustomDept('');
+                      setShowCustomDept(true);
+                      setForm({ ...form, dept: '' });
+                      return;
+                    }
+                    setCustomDept('');
+                    setShowCustomDept(false);
+                    setForm({ ...form, dept: e.target.value });
+                  }}
+                >
+                  <option value="">Select department</option>
+                  {departments.map((dep) => (
+                    <option key={dep.id} value={dep.dept_name}>
+                      {dep.dept_name}
+                    </option>
+                  ))}
+                  <option value="__custom__">Add new department...</option>
+                </Form.Select>
+              )}
+              {showCustomDept && (
+                <Form.Control
+                  className="mt-2"
+                  placeholder="Type new department"
+                  value={customDept}
+                  onChange={(e) => setCustomDept(e.target.value)}
+                />
+              )}
             </Col>
             <Col md={6}>
               <Form.Label>Year</Form.Label>
               <Form.Control name="year" type="number" value={form.year} onChange={handleChange} />
+            </Col>
+
+            <Col md={6}>
+              <Form.Label>Designation</Form.Label>
+              <Form.Control name="designation" type="text" value={form.designation} onChange={handleChange} placeholder="e.g. Software Engineer" />
             </Col>
 
             <Col md={6}>

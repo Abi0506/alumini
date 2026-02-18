@@ -22,9 +22,12 @@ export default function ResultsTable({ results, onEdit, hasSearched }) {
             <th className="small">ID</th>
             <th>Name</th>
             <th className="small">Dept</th>
+            
             <th className="small">Year</th>
             <th className="small">Location</th>
+            
             <th className="small">Company</th>
+            <th className="small">Designation</th>
             <th className="small">Email</th>
             <th className="small">Phone</th>
             <th className="text-end small">Action</th>
@@ -37,9 +40,12 @@ export default function ResultsTable({ results, onEdit, hasSearched }) {
               <td className="small fw-semibold">{item.id || "not available"}</td>
               <td className="fw-semibold">{item.name || "not available"}</td>
               <td className="small">{item.dept || "not available"}</td>
+              
               <td className="small">{item.year || "not available"}</td>
               <td className="small">{item.location || "not available"}</td>
+              
               <td className="small">{item.company || "not available"}</td>
+              <td className="small">{item.designation || "not available"}</td>
               <td className="small text-truncate" style={{ maxWidth: "160px" }}>
                 {item.email || "not available"}
               </td>

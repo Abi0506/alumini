@@ -13,6 +13,7 @@ export default function ExcelUpload() {
     { name: 'dept', description: 'Department', essential: true },
     { name: 'year', description: 'Graduation Year (as number)', essential: true },
     { name: 'id', description: 'Alumni ID', essential: false },
+    { name: 'designation', description: 'Job Designation/Title', essential: false },
     { name: 'phone', description: 'Phone Number', essential: false },
     { name: 'email', description: 'Email Address', essential: false },
     { name: 'company', description: 'Current Company', essential: false },

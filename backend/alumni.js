@@ -6,6 +6,34 @@ const pool = require("./db");
 const express = require("express");
 const router = express.Router();
 
+const normalizeDeptName = (value) => {
+  if (!value) return "";
+  return String(value).trim();
+};
+
+const ensureDepartment = async (deptName) => {
+  const normalized = normalizeDeptName(deptName);
+  if (!normalized) return null;
+
+  const [existing] = await pool.execute(
+    "SELECT id FROM departments WHERE dept_name = ? LIMIT 1",
+    [normalized]
+  );
+
+  if (existing.length > 0) return existing[0].id;
+
+  await pool.execute("INSERT INTO departments (dept_name) VALUES (?)", [
+    normalized,
+  ]);
+
+  const [created] = await pool.execute(
+    "SELECT id FROM departments WHERE dept_name = ? LIMIT 1",
+    [normalized]
+  );
+
+  return created.length > 0 ? created[0].id : null;
+};
+
 // ─── MULTER setup ────────────────────────────────────────────────
 const uploadDir = path.join(__dirname, "uploads");
 
@@ -35,6 +63,7 @@ router.post("/search", async (req, res) => {
         location ASC,
         company ASC,
         dept ASC,
+        designation ASC,
         year ASC,
         id ASC`
     : `ORDER BY name ASC`;
@@ -112,7 +141,7 @@ router.post("/search", async (req, res) => {
         return;
       }
 
-      // ✅ other fields LIKE (id, roll, name, dept, address, company, location...)
+      // ✅ other fields LIKE (id, roll, name, dept, designation, address, company, location...)
       exactConditions.push(`${key} LIKE ?`);
       exactParams.push(`%${strValue}%`);
 
@@ -157,7 +186,7 @@ router.post("/search", async (req, res) => {
 // ✅ Add / Update single record (phone as VARCHAR)
 // ────────────────────────────────────────────────────────────────
 router.post("/", async (req, res) => {
-  const { id, roll, name, phone, email, dept, year, address, company, location } =
+  const { id, roll, name, phone, email, dept, designation, year, address, company, location } =
     req.body;
 
   // if (!id?.trim()) {
@@ -165,19 +194,21 @@ router.post("/", async (req, res) => {
   // }
 
   try {
+    await ensureDepartment(dept);
     await pool.execute(
-      `INSERT INTO alumni (id, roll, name, phone, email, dept, year, address, company, location)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `INSERT INTO alumni (id, roll, name, phone, email, dept, designation, year, address, company, location)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
        ON DUPLICATE KEY UPDATE
-         roll     = VALUES(roll),
-         name     = VALUES(name),
-         phone    = VALUES(phone),
-         email    = VALUES(email),
-         dept     = VALUES(dept),
-         year     = VALUES(year),
-         address  = VALUES(address),
-         company  = VALUES(company),
-         location = VALUES(location)`,
+         roll        = VALUES(roll),
+         name        = VALUES(name),
+         phone       = VALUES(phone),
+         email       = VALUES(email),
+         dept        = VALUES(dept),
+         designation = VALUES(designation),
+         year        = VALUES(year),
+         address     = VALUES(address),
+         company     = VALUES(company),
+         location    = VALUES(location)`,
       [
         id.trim(),
         roll?.trim() || null,
@@ -185,6 +216,7 @@ router.post("/", async (req, res) => {
         phone?.toString().trim() || null, // ✅ phone string
         email?.trim() || null,
         dept?.trim() || null,
+        designation?.trim() || null,
         year || null,
         address?.trim() || null,
         company?.trim() || null,
@@ -270,25 +302,29 @@ router.post("/import-excel", upload.single("file"), async (req, res) => {
         phone: getCellValue(row, "phone"),
         email: getCellValue(row, "email"),
         dept: getCellValue(row, "dept"),
+        designation: getCellValue(row, "designation"),
         year: getCellValue(row, "year") ? Number(getCellValue(row, "year")) : null,
         address: getCellValue(row, "address"),
         company: getCellValue(row, "company"),
         location: getCellValue(row, "location"),
       };
 
+      await ensureDepartment(data.dept);
+
       const [result] = await pool.execute(
-        `INSERT INTO alumni (id, roll, name, phone, email, dept, year, address, company, location)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `INSERT INTO alumni (id, roll, name, phone, email, dept, designation, year, address, company, location)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
          ON DUPLICATE KEY UPDATE
-           roll     = VALUES(roll),
-           name     = VALUES(name),
-           phone    = VALUES(phone),
-           email    = VALUES(email),
-           dept     = VALUES(dept),
-           year     = VALUES(year),
-           address  = VALUES(address),
-           company  = VALUES(company),
-           location = VALUES(location)`,
+           roll        = VALUES(roll),
+           name        = VALUES(name),
+           phone       = VALUES(phone),
+           email       = VALUES(email),
+           dept        = VALUES(dept),
+           designation = VALUES(designation),
+           year        = VALUES(year),
+           address     = VALUES(address),
+           company     = VALUES(company),
+           location    = VALUES(location)`,
         [
           data.id,
           data.roll,
@@ -296,6 +332,7 @@ router.post("/import-excel", upload.single("file"), async (req, res) => {
           data.phone,
           data.email,
           data.dept,
+          data.designation,
           data.year,
           data.address,
           data.company,
