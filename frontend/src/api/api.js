@@ -8,23 +8,12 @@ const api = axios.create({
   },
   timeout: 15000,
 });
-
-
-// src/api/api.js – updated searchAlumni
 export const searchAlumni = async (filters = {}) => {
   try {
     const response = await api.post('/search', filters);
     
-    
-    if (Array.isArray(response.data)) {
-      return response.data;
-    } else if (response.data && Array.isArray(response.data.data)) {
-      return response.data.data;
-    } else {
-      return []; // fallback
-    }
+    return response.data;
   } catch (error) {
-    console.error('searchAlumni failed:', error);
     throw new Error(error.response?.data?.error || 'Search failed');
   }
 };

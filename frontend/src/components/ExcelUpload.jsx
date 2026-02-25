@@ -6,18 +6,17 @@ export default function ExcelUpload() {
   const [status, setStatus] = useState(null);
   const [uploading, setUploading] = useState(false);
   const [showInstructions, setShowInstructions] = useState(true);
+  const fileInputRef = React.useRef(null);
 
   const requiredColumns = [
     { name: 'roll', description: 'Roll Number', essential: true },
     { name: 'name', description: 'Full Name', essential: true },
     { name: 'dept', description: 'Department', essential: true },
     { name: 'year', description: 'Graduation Year (as number)', essential: true },
-    { name: 'id', description: 'Alumni ID', essential: false },
     { name: 'designation', description: 'Job Designation/Title', essential: false },
     { name: 'phone', description: 'Phone Number', essential: false },
     { name: 'email', description: 'Email Address', essential: false },
     { name: 'company', description: 'Current Company', essential: false },
-    { name: 'location', description: 'Current Location/City', essential: false },
     { name: 'address', description: 'Address', essential: false }
   ];
 
@@ -31,6 +30,9 @@ export default function ExcelUpload() {
         type: 'success',
         message: `Imported ${result.inserted || 0}, Updated ${result.updated || 0}`
       });
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
     } catch (err) {
       setStatus({
         type: 'danger',
@@ -82,13 +84,14 @@ export default function ExcelUpload() {
 
       <div className="mb-3">
         <input
+          ref={fileInputRef}
           type="file"
           accept=".xlsx,.xls"
           className="form-control form-control-sm"
           onChange={(e) => setFile(e.target.files[0])}
         />
         <small className="text-muted d-block mt-2">
-          {showInstructions ? 'Select an Excel file matching the columns shown above.' : 'Column headers: id, name, dept, year, phone, email, company, location, address'}
+          {showInstructions ? 'Select an Excel file matching the columns shown above.' : 'Column headers: roll, name, dept, year, phone, email, company, address'}
         </small>
       </div>
 

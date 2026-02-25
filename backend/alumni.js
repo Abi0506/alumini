@@ -11,48 +11,82 @@ const normalizeDeptName = (value) => {
   return String(value).trim();
 };
 
+const columnExists = async (columnName) => {
+  try {
+    const [rows] = await pool.execute(
+      "SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'alumni' AND COLUMN_NAME = ? LIMIT 1",
+      [columnName]
+    );
+    return rows.length > 0;
+  } catch (err) {
+    return false;
+  }
+};
+
 const ensureDepartment = async (deptName) => {
   const normalized = normalizeDeptName(deptName);
   if (!normalized) return null;
 
-  const [existing] = await pool.execute(
-    "SELECT id FROM departments WHERE dept_name = ? LIMIT 1",
-    [normalized]
-  );
+  const connection = await pool.getConnection();
+  
+  try {
+    await connection.beginTransaction();
+    
+    const [existing] = await connection.execute(
+      "SELECT id FROM departments WHERE dept_name = ? LIMIT 1",
+      [normalized]
+    );
 
-  if (existing.length > 0) return existing[0].id;
+    if (existing.length > 0) {
+      await connection.commit();
+      return existing[0].id;
+    }
 
-  await pool.execute("INSERT INTO departments (dept_name) VALUES (?)", [
-    normalized,
-  ]);
+    await connection.execute("INSERT IGNORE INTO departments (dept_name) VALUES (?)", [
+      normalized,
+    ]);
 
-  const [created] = await pool.execute(
-    "SELECT id FROM departments WHERE dept_name = ? LIMIT 1",
-    [normalized]
-  );
+    const [created] = await connection.execute(
+      "SELECT id FROM departments WHERE dept_name = ? LIMIT 1",
+      [normalized]
+    );
 
-  return created.length > 0 ? created[0].id : null;
+    await connection.commit();
+    return created.length > 0 ? created[0].id : null;
+  } catch (err) {
+    await connection.rollback();
+    throw err;
+  } finally {
+    connection.release();
+  }
 };
 
-// ─── MULTER setup ────────────────────────────────────────────────
 const uploadDir = path.join(__dirname, "uploads");
 
 (async () => {
   try {
     await fs.mkdir(uploadDir, { recursive: true });
   } catch (err) {
-    console.error("Could not create uploads folder:", err);
+    // uploads folder creation failed
   }
 })();
 
 const upload = multer({
   dest: uploadDir,
-  limits: { fileSize: 100 * 1024 * 1024 }, // 100 MB
+  limits: { fileSize: 100 * 1024 * 1024 },
 });
 
 
 router.post("/search", async (req, res) => {
   const filters = req.body;
+
+  // Extract event/round filters (handled specially)
+  const eventFilterRaw = filters?.event;
+  const roundFilterRaw = filters?.round;
+  delete filters?.event;
+  delete filters?.round;
+
+  const allowedColumns = ['roll', 'name', 'phone', 'email', 'dept', 'designation', 'year', 'address', 'company'];
 
   const runQuery = async (whereClause, params, hasLike = false) => {
   const orderBy = hasLike
@@ -60,12 +94,10 @@ router.post("/search", async (req, res) => {
         name ASC,
         phone ASC,
         email ASC,
-        location ASC,
         company ASC,
         dept ASC,
         designation ASC,
-        year ASC,
-        id ASC`
+        year ASC`
     : `ORDER BY name ASC`;
 
   const query = `
@@ -73,7 +105,6 @@ router.post("/search", async (req, res) => {
     FROM alumni
     ${whereClause}
     ${orderBy}
-    LIMIT 150
   `;
 
   const [rows] = await pool.execute(query, params);
@@ -87,17 +118,22 @@ router.post("/search", async (req, res) => {
     const likeConditions = [];
     const likeParams = [];
 
-    Object.entries(filters).forEach(([key, value]) => {
-      if (value === undefined || value === null) return;
+      for (const [key, value] of Object.entries(filters)) {
+      if (value === undefined || value === null) continue;
 
       const strValue = String(value).trim();
-      if (strValue === "") return;
+      if (strValue === "") continue;
 
-      // ✅ PHONE (VARCHAR)
+      
+      if (!allowedColumns.includes(key)) continue;
+
+      if (key === "id") continue;
+
+      
       if (key === "phone") {
         const digitsOnly = strValue.replace(/\D/g, "");
 
-        // exact only if 10 digits
+        
         if (digitsOnly.length === 10) {
           exactConditions.push("phone = ?");
           exactParams.push(digitsOnly);
@@ -106,48 +142,110 @@ router.post("/search", async (req, res) => {
           exactParams.push(`%${digitsOnly}%`);
         }
 
-        // fallback always LIKE
+        
         likeConditions.push("phone LIKE ?");
         likeParams.push(`%${digitsOnly}%`);
-        return;
+        continue;
       }
 
-      // ✅ EMAIL
-      if (key === "email") {
-        // exact if contains @
-        if (strValue.includes("@")) {
-          exactConditions.push("LOWER(email) = LOWER(?)");
-          exactParams.push(strValue);
-        } else {
-          exactConditions.push("LOWER(email) LIKE LOWER(?)");
+      
+      if (key === 'dept') {
+        try {
+          const [deptRows] = await pool.execute(
+            'SELECT dept_name FROM departments WHERE LOWER(dept_name) = LOWER(?) LIMIT 1',
+            [strValue]
+          );
+
+          if (deptRows.length > 0) {
+            const deptName = deptRows[0].dept_name;
+            exactConditions.push('LOWER(dept) = LOWER(?)');
+            exactParams.push(deptName);
+
+            likeConditions.push('LOWER(dept) LIKE LOWER(?)');
+            likeParams.push(`%${deptName}%`);
+          } else {
+            exactConditions.push('LOWER(dept) LIKE LOWER(?)');
+            exactParams.push(`%${strValue}%`);
+
+            likeConditions.push('LOWER(dept) LIKE LOWER(?)');
+            likeParams.push(`%${strValue}%`);
+          }
+        } catch (err) {
+          // dept lookup failed
+          exactConditions.push('LOWER(dept) LIKE LOWER(?)');
           exactParams.push(`%${strValue}%`);
+
+          likeConditions.push('LOWER(dept) LIKE LOWER(?)');
+          likeParams.push(`%${strValue}%`);
         }
 
-        // fallback always LIKE
-        likeConditions.push("LOWER(email) LIKE LOWER(?)");
-        likeParams.push(`%${strValue}%`);
-        return;
+        continue;
       }
 
-      // ✅ YEAR exact
-      if (key === "year") {
-        if (!isNaN(strValue)) {
-          exactConditions.push("year = ?");
-          exactParams.push(Number(strValue));
+      // Handle event / payment filtering: ensure only paid participants are returned
+      if (eventFilterRaw) {
+        const raw = String(eventFilterRaw || '').trim();
+        if (raw) {
+          const ev = raw.replace(/[^a-z0-9]+/gi, '_').toLowerCase();
 
-          likeConditions.push("year = ?");
-          likeParams.push(Number(strValue));
+          const roundNum = roundFilterRaw ? Number(roundFilterRaw) : null;
+
+          // candidate column names to check
+          const candidates = [];
+          candidates.push(`${ev}_paid`);
+          candidates.push(`paid_${ev}`);
+          candidates.push(`${ev}_round1_paid`);
+          candidates.push(`${ev}_round2_paid`);
+          candidates.push(`${ev}_paid_round1`);
+          candidates.push(`${ev}_paid_round2`);
+          candidates.push(`${ev}_paid_round${roundNum}`);
+          candidates.push(`${ev}_round${roundNum}_paid`);
+
+          const existing = [];
+          for (const col of candidates) {
+            if (!col) continue;
+            if (existing.includes(col)) continue;
+            // eslint-disable-next-line no-await-in-loop
+            if (await columnExists(col)) existing.push(col);
+          }
+
+          // prefer round-specific columns if round provided
+          if (roundNum && !Number.isNaN(roundNum)) {
+            const roundColCandidates = existing.filter(c => c.includes(`round${roundNum}`) || c.includes(`round_${roundNum}`) || c.endsWith(`_round${roundNum}`));
+            const roundCol = roundColCandidates[0] || existing.find(c => c === `${ev}_paid` || c === `paid_${ev}`);
+            if (roundCol) {
+              const round1Col = existing.find(c => c.includes('round1')) || null;
+              exactConditions.push(`${roundCol} = ?`);
+              exactParams.push(1);
+              if (round1Col && round1Col !== roundCol) {
+                exactConditions.push(`${round1Col} = ?`);
+                exactParams.push(1);
+              }
+            }
+          } else {
+            // no round specified: if schema indicates round1 exists (suggesting multiple rounds), require round1 paid
+            const round1Col = existing.find(c => c.includes('round1'));
+            if (round1Col) {
+              exactConditions.push(`${round1Col} = ?`);
+              exactParams.push(1);
+            } else if (existing.length > 0) {
+              const generic = existing.find(c => c === `${ev}_paid` || c === `paid_${ev}`) || existing[0];
+              if (generic) {
+                exactConditions.push(`${generic} = ?`);
+                exactParams.push(1);
+              }
+            }
+          }
         }
-        return;
       }
 
-      // ✅ other fields LIKE (id, roll, name, dept, designation, address, company, location...)
-      exactConditions.push(`${key} LIKE ?`);
+      exactConditions.push(`LOWER(${key}) LIKE LOWER(?)`);
       exactParams.push(`%${strValue}%`);
 
-      likeConditions.push(`${key} LIKE ?`);
+      likeConditions.push(`LOWER(${key}) LIKE LOWER(?)`);
       likeParams.push(`%${strValue}%`);
-    });
+
+    }
 
     const exactWhere =
       exactConditions.length > 0 ? "WHERE " + exactConditions.join(" AND ") : "";
@@ -155,10 +253,9 @@ router.post("/search", async (req, res) => {
     const likeWhere =
       likeConditions.length > 0 ? "WHERE " + likeConditions.join(" AND ") : "";
 
-    // ✅ run exact first
     let rows = await runQuery(exactWhere, exactParams);
 
-    // ✅ fallback if exact gives 0
+    
     if (rows.length === 0) {
       rows = await runQuery(likeWhere, likeParams);
     }
@@ -177,27 +274,26 @@ router.post("/search", async (req, res) => {
       data: rows,
     });
   } catch (err) {
-    console.error("Search error:", err);
     res.status(500).json({ error: err.message });
   }
 });
 
-// ────────────────────────────────────────────────────────────────
-// ✅ Add / Update single record (phone as VARCHAR)
-// ────────────────────────────────────────────────────────────────
 router.post("/", async (req, res) => {
-  const { id, roll, name, phone, email, dept, designation, year, address, company, location } =
-    req.body;
+  const { roll, name, phone, email, dept, designation, year, address, company } = req.body;
 
-  // if (!id?.trim()) {
-  //   return res.status(400).json({ error: "id is required" });
-  // }
+  
+  if (!roll?.trim()) {
+    return res.status(400).json({ error: "Roll number is required" });
+  }
+  if (!name?.trim()) {
+    return res.status(400).json({ error: "Name is required" });
+  }
 
   try {
     await ensureDepartment(dept);
     await pool.execute(
-      `INSERT INTO alumni (id, roll, name, phone, email, dept, designation, year, address, company, location)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `INSERT INTO alumni (roll, name, phone, email, dept, designation, year, address, company)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
        ON DUPLICATE KEY UPDATE
          roll        = VALUES(roll),
          name        = VALUES(name),
@@ -207,33 +303,26 @@ router.post("/", async (req, res) => {
          designation = VALUES(designation),
          year        = VALUES(year),
          address     = VALUES(address),
-         company     = VALUES(company),
-         location    = VALUES(location)`,
+         company     = VALUES(company)`,
       [
-        id.trim(),
         roll?.trim() || null,
         name?.trim() || null,
-        phone?.toString().trim() || null, // ✅ phone string
+        phone?.toString().trim() || null,
         email?.trim() || null,
         dept?.trim() || null,
         designation?.trim() || null,
         year || null,
         address?.trim() || null,
         company?.trim() || null,
-        location?.trim() || null,
       ]
     );
 
     res.json({ success: true, message: "Record saved" });
   } catch (err) {
-    console.error("Save error:", err);
     res.status(500).json({ error: err.message });
   }
 });
 
-// ────────────────────────────────────────────────────────────────
-// ✅ Bulk import from Excel (phone as VARCHAR)
-// ────────────────────────────────────────────────────────────────
 router.post("/import-excel", upload.single("file"), async (req, res) => {
   if (!req.file) return res.status(400).json({ error: "No file uploaded" });
 
@@ -246,7 +335,7 @@ router.post("/import-excel", upload.single("file"), async (req, res) => {
     const worksheet = workbook.worksheets[0];
     if (!worksheet) throw new Error("No worksheet found");
 
-    // ✅ Read headers safely
+    
     const headers = {};
     const headerRow = worksheet.getRow(1);
 
@@ -255,27 +344,24 @@ router.post("/import-excel", upload.single("file"), async (req, res) => {
       if (header) headers[header] = colNumber;
     });
 
-    // ✅ Accept multiple names for ID column
-    const idCol =
-      headers["id"] ||
-      headers["student id"] ||
-      headers["student_id"] ||
+    
+    const rollCol =
       headers["roll"] ||
       headers["roll no"] ||
       headers["rollno"] ||
       headers["register no"] ||
       headers["reg no"];
 
-    if (!idCol) {
+    if (!rollCol) {
       throw new Error(
-        'Column "id" is required. Accepted headers: id / student id / roll / roll no / register no'
+        'Column "roll" is required. Accepted headers: roll / roll no / rollno / register no / reg no'
       );
     }
 
     let inserted = 0;
     let updated = 0;
 
-    // ✅ helper to safely read a cell by header name
+    
     const getCellValue = (row, headerKey) => {
       const col = headers[headerKey];
       if (!col) return null;
@@ -289,15 +375,14 @@ router.post("/import-excel", upload.single("file"), async (req, res) => {
     for (let rowNumber = 2; rowNumber <= worksheet.rowCount; rowNumber++) {
       const row = worksheet.getRow(rowNumber);
 
-      // ✅ skip empty rows
+      
       if (!row || row.cellCount === 0) continue;
 
-      const idValue = row.getCell(idCol).value?.toString?.()?.trim?.();
-      if (!idValue) continue;
+      const rollValue = row.getCell(rollCol).value?.toString?.()?.trim?.();
+      if (!rollValue) continue;
 
       const data = {
-        id: idValue,
-        roll: getCellValue(row, "roll"),
+        roll: rollValue,
         name: getCellValue(row, "name"),
         phone: getCellValue(row, "phone"),
         email: getCellValue(row, "email"),
@@ -306,14 +391,13 @@ router.post("/import-excel", upload.single("file"), async (req, res) => {
         year: getCellValue(row, "year") ? Number(getCellValue(row, "year")) : null,
         address: getCellValue(row, "address"),
         company: getCellValue(row, "company"),
-        location: getCellValue(row, "location"),
       };
 
       await ensureDepartment(data.dept);
 
       const [result] = await pool.execute(
-        `INSERT INTO alumni (id, roll, name, phone, email, dept, designation, year, address, company, location)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `INSERT INTO alumni (roll, name, phone, email, dept, designation, year, address, company)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
          ON DUPLICATE KEY UPDATE
            roll        = VALUES(roll),
            name        = VALUES(name),
@@ -323,10 +407,8 @@ router.post("/import-excel", upload.single("file"), async (req, res) => {
            designation = VALUES(designation),
            year        = VALUES(year),
            address     = VALUES(address),
-           company     = VALUES(company),
-           location    = VALUES(location)`,
+           company     = VALUES(company)`,
         [
-          data.id,
           data.roll,
           data.name,
           data.phone,
@@ -336,7 +418,6 @@ router.post("/import-excel", upload.single("file"), async (req, res) => {
           data.year,
           data.address,
           data.company,
-          data.location,
         ]
       );
 
@@ -354,15 +435,12 @@ router.post("/import-excel", upload.single("file"), async (req, res) => {
     });
   } catch (err) {
     if (req.file?.path) await fs.unlink(req.file.path).catch(() => {});
-    console.error("Excel import error:", err);
     res.status(500).json({ error: err.message });
   }
 });
 
 
-// ────────────────────────────────────────────────────────────────
-// ✅ Get departments
-// ────────────────────────────────────────────────────────────────
+ 
 router.get("/departments", async (req, res) => {
   try {
     const [rows] = await pool.query(
@@ -370,7 +448,6 @@ router.get("/departments", async (req, res) => {
     );
     res.json(rows);
   } catch (err) {
-    console.error("Error fetching departments:", err);
     res.status(500).json({ error: "Failed to fetch departments" });
   }
 });

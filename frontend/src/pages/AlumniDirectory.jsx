@@ -1,4 +1,4 @@
-// src/pages/AlumniDirectory.jsx
+
 import React, { useState } from "react";
 import { searchAlumni, saveAlumni } from "../api/api";
 import "bootstrap/dist/css/bootstrap.min.css";
@@ -8,8 +8,9 @@ import SearchForm from "../components/SearchForm";
 import ResultsTable from "../components/ResultsTable";
 import AlumniModal from "../components/AlumniModal";
 import ExcelUpload from "../components/ExcelUpload";
+import UserManagement from "../components/UserManagement";
 
-export default function AlumniDirectory() {
+export default function AlumniDirectory({ user, onLogout }) {
   const [results, setResults] = useState([]);
   const [loading, setLoading] = useState(false);
 
@@ -20,6 +21,10 @@ export default function AlumniDirectory() {
 
   const [rowsPerPage, setRowsPerPage] = useState(10);
   const [hasSearched, setHasSearched] = useState(false);
+  const [lastSearchFilters, setLastSearchFilters] = useState(null);
+  const [clearFormTrigger, setClearFormTrigger] = useState(0);
+  const [restoreFormTrigger, setRestoreFormTrigger] = useState(0);
+  const [showUserManagement, setShowUserManagement] = useState(false);
 
   const normalizeEmail = (value = "") => String(value || "").trim().toLowerCase();
   const normalizePhone = (value = "") => String(value || "").replace(/\D/g, "");
@@ -58,7 +63,18 @@ export default function AlumniDirectory() {
       .map((entry) => entry.item);
   };
 
-  const handleSearch = async (filters) => {
+  const handleSearch = async (filters, skipEmptyCheck = false) => {
+    
+    if (!skipEmptyCheck) {
+      const hasData = Object.values(filters).some(val => val && String(val).trim() !== '');
+      if (!hasData) {
+        setHasSearched(false);
+        setResults([]);
+        setErrorMsg("");
+        return;
+      }
+    }
+
     setHasSearched(true);
     setLoading(true);
     setErrorMsg("");
@@ -69,7 +85,7 @@ export default function AlumniDirectory() {
 
       let alumniData = response;
 
-      // supports both formats: [] or { success, data }
+      
       if (response && typeof response === "object" && !Array.isArray(response)) {
         if (response.success === false) {
           setErrorMsg(response.message || "No records found");
@@ -81,8 +97,11 @@ export default function AlumniDirectory() {
 
       const normalized = Array.isArray(alumniData) ? alumniData : [];
       setResults(applySmartSort(filters, normalized));
+      
+      
+      setLastSearchFilters(filters);
+      setClearFormTrigger(prev => prev + 1);
     } catch (err) {
-      console.error("Search failed:", err);
       setErrorMsg(err.message || "Search failed. Please try again.");
       setResults([]);
     } finally {
@@ -90,17 +109,34 @@ export default function AlumniDirectory() {
     }
   };
 
+  const handleReset = () => {
+    if (lastSearchFilters) {
+      setRestoreFormTrigger(prev => prev + 1);
+    }
+  };
+
   const handleSave = async (data) => {
     try {
       await saveAlumni(data);
 
-      // ✅ reflect instantly in UI
+      
       setResults((prev) => {
-        const exists = prev.some((item) => item.id === data.id);
+        const normalizeKey = (value = "") => String(value || "").trim().toLowerCase();
+        const getIdentity = (item) =>
+          normalizeKey(item.roll) ||
+          normalizeEmail(item.email) ||
+          normalizePhone(item.phone) ||
+          normalizeKey(item.name);
+
+        const targetKey = getIdentity(data);
+        if (!targetKey) {
+          return [{ ...data }, ...prev];
+        }
+        const exists = prev.some((item) => getIdentity(item) === targetKey);
 
         if (exists) {
           return prev.map((item) =>
-            item.id === data.id ? { ...item, ...data } : item
+            getIdentity(item) === targetKey ? { ...item, ...data } : item
           );
         } else {
           return [{ ...data }, ...prev];
@@ -111,7 +147,7 @@ export default function AlumniDirectory() {
       setSelectedAlumni(null);
       setErrorMsg("");
     } catch (err) {
-      setErrorMsg(err.message || "Save failed");
+      alert(err.message || "Save failed. Please try again.");
     }
   };
 
@@ -120,28 +156,35 @@ export default function AlumniDirectory() {
   return (
     <>
       <div className="app-shell">
-        <header className="hero">
-          <div className="container hero__content">
-            <div className="hero__brand">
-              <img
-                src="/psg-logo.png"
-                alt="PSG Institute of Technology and Applied Research"
-                className="hero__logo"
-              />
-              <div className="hero__brand-name">
-                PSG Institute of Technology and Applied Research
-              </div>
+        <main className="container content" style={{ maxWidth: "1100px" }}>
+          <div className="d-flex justify-content-between align-items-center mb-4 mt-4">
+            <div>
+              <h4 className="mb-0 fw-bold">Alumni Directory</h4>
+              {user && (
+                <small className="text-muted">
+                  Welcome, {user.name} 
+                  {user.role === 'admin' && <span className="badge bg-danger ms-2">Admin</span>}
+                </small>
+              )}
             </div>
-            <div className="hero__actions">
+            <div className="d-flex gap-2 align-items-center">
+              {user?.role === 'admin' && (
+                <button
+                  className="btn btn-outline-secondary btn-sm"
+                  onClick={() => setShowUserManagement(true)}
+                >
+                  Manage Users
+                </button>
+              )}
               <button
-                className="btn btn-hero btn-soft"
+                className="btn btn-outline-primary btn-sm"
                 data-bs-toggle="modal"
                 data-bs-target="#excelUploadModal"
               >
                 Import Excel
               </button>
               <button
-                className="btn btn-hero btn-accent"
+                className="btn btn-primary btn-sm"
                 onClick={() => {
                   setSelectedAlumni(null);
                   setModalOpen(true);
@@ -149,14 +192,25 @@ export default function AlumniDirectory() {
               >
                 Add New
               </button>
+              <button
+                className="btn btn-outline-danger btn-sm"
+                onClick={onLogout}
+              >
+                Logout
+              </button>
             </div>
           </div>
-        </header>
 
-        <main className="container content" style={{ maxWidth: "1100px" }}>
           <div className="panel panel--search mb-4">
             <div className="section-title">Search Filters</div>
-            <SearchForm onSearch={handleSearch} loading={loading} />
+            <SearchForm 
+              onSearch={handleSearch} 
+              onReset={handleReset} 
+              loading={loading} 
+              clearTrigger={clearFormTrigger}
+              restoreTrigger={restoreFormTrigger}
+              restoreData={lastSearchFilters}
+            />
           </div>
 
           {hasSearched && (
@@ -291,6 +345,14 @@ export default function AlumniDirectory() {
         onSave={handleSave}
         initialData={selectedAlumni}
       />
+
+      {/* ✅ User Management Modal (Admin only) */}
+      {user?.role === 'admin' && (
+        <UserManagement
+          isOpen={showUserManagement}
+          onClose={() => setShowUserManagement(false)}
+        />
+      )}
     </>
   );
 }

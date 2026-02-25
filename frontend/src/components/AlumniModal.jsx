@@ -4,25 +4,30 @@ import { getDepartments } from '../api/api';
 
 export default function AlumniModal({ isOpen, onClose, onSave, initialData }) {
   const [form, setForm] = useState({
-    id: '', roll: '', name: '', phone: '', email: '', dept: '', designation: '',
-    year: '', address: '', company: '', location: ''
+    roll: '', name: '', phone: '', email: '', dept: '', designation: '',
+    year: '', address: '', company: ''
   });
   const [departments, setDepartments] = useState([]);
   const [deptLoading, setDeptLoading] = useState(true);
   const [deptError, setDeptError] = useState('');
   const [customDept, setCustomDept] = useState('');
   const [showCustomDept, setShowCustomDept] = useState(false);
+  const [confirmText, setConfirmText] = useState('');
 
   useEffect(() => {
     if (initialData) {
       setForm(initialData);
+      setConfirmText('');
     } else {
       setForm({
-        id: '', roll: '', name: '', phone: '', email: '', dept: '', designation: '',
-        year: '', address: '', company: '', location: ''
+        roll: '', name: '', phone: '', email: '', dept: '', designation: '',
+        year: '', address: '', company: ''
       });
+      setCustomDept('');
+      setShowCustomDept(false);
+      setConfirmText('');
     }
-  }, [initialData]);
+  }, [initialData, isOpen]);
 
   useEffect(() => {
     const fetchDepts = async () => {
@@ -30,7 +35,6 @@ export default function AlumniModal({ isOpen, onClose, onSave, initialData }) {
         const data = await getDepartments();
         setDepartments(Array.isArray(data) ? data : []);
       } catch (err) {
-        console.error('Failed to load departments:', err);
         setDeptError('Could not load departments');
       } finally {
         setDeptLoading(false);
@@ -59,9 +63,18 @@ export default function AlumniModal({ isOpen, onClose, onSave, initialData }) {
   const handleChange = (e) => {
     setForm({ ...form, [e.target.name]: e.target.value });
   };
+  const isEdit = Boolean(initialData);
+  const isConfirmed = !isEdit || (confirmText || '').trim().toUpperCase() === 'UPDATE';
 
   const handleSubmit = (e) => {
     e.preventDefault();
+
+    if (!isConfirmed) {
+      // prevent accidental submits when edit confirmation not provided
+      alert('Please type UPDATE to confirm changes before saving.');
+      return;
+    }
+
     const deptValue = customDept?.trim() || form.dept?.trim() || '';
     onSave({
       ...form,
@@ -78,17 +91,18 @@ export default function AlumniModal({ isOpen, onClose, onSave, initialData }) {
         <Form onSubmit={handleSubmit}>
           <Row className="g-3">
             <Col md={6}>
-              <Form.Label>ID</Form.Label>
-              <Form.Control
-                name="id"
-                value={form.id}
+              <Form.Label>Roll Number <span className="text-danger">*</span></Form.Label>
+              <Form.Control 
+                name="roll" 
+                value={form.roll} 
                 onChange={handleChange}
-                disabled={!!initialData} // prevent changing ID on edit
+                required
+                placeholder="e.g. 88XX88"
               />
             </Col>
             <Col md={6}>
-              <Form.Label>Name</Form.Label>
-              <Form.Control name="name" value={form.name} onChange={handleChange} />
+              <Form.Label>Name <span className="text-danger">*</span></Form.Label>
+              <Form.Control name="name" value={form.name} onChange={handleChange} required />
             </Col>
 
             <Col md={6}>
@@ -165,13 +179,21 @@ export default function AlumniModal({ isOpen, onClose, onSave, initialData }) {
               <Form.Label>Company</Form.Label>
               <Form.Control name="company" value={form.company} onChange={handleChange} />
             </Col>
-            <Col md={6}>
-              <Form.Label>Location</Form.Label>
-              <Form.Control name="location" value={form.location} onChange={handleChange} />
-            </Col>
           </Row>
 
-          <Button variant="primary" type="submit" className="mt-4 w-100">
+          {isEdit && (
+            <div className="mb-3">
+              <Form.Label>Confirm Update</Form.Label>
+              <Form.Control
+                placeholder="Type UPDATE to confirm changes"
+                value={confirmText}
+                onChange={(e) => setConfirmText(e.target.value)}
+              />
+              <div className="form-text">Type UPDATE (case-insensitive) to enable updating this record.</div>
+            </div>
+          )}
+
+          <Button variant="primary" type="submit" className="mt-4 w-100" disabled={!isConfirmed}>
             {initialData ? 'Update' : 'Save'}
           </Button>
         </Form>

@@ -19,30 +19,31 @@ export default function ResultsTable({ results, onEdit, hasSearched }) {
       <table className="table table-hover align-middle mb-0">
         <thead>
           <tr>
-            <th className="small">ID</th>
+            <th className="small">Roll</th>
             <th>Name</th>
             <th className="small">Dept</th>
             
             <th className="small">Year</th>
-            <th className="small">Location</th>
+           
             
             <th className="small">Company</th>
             <th className="small">Designation</th>
             <th className="small">Email</th>
             <th className="small">Phone</th>
+             <th className="small">Address</th>
             <th className="text-end small">Action</th>
           </tr>
         </thead>
 
         <tbody>
-          {results.map((item) => (
-            <tr key={item.id}>
-              <td className="small fw-semibold">{item.id || "not available"}</td>
+          {results.map((item, index) => (
+            <tr key={item.roll || item.email || item.phone || item.name || index}>
+              <td className="small fw-semibold">{item.roll || "not available"}</td>
               <td className="fw-semibold">{item.name || "not available"}</td>
               <td className="small">{item.dept || "not available"}</td>
               
               <td className="small">{item.year || "not available"}</td>
-              <td className="small">{item.location || "not available"}</td>
+             
               
               <td className="small">{item.company || "not available"}</td>
               <td className="small">{item.designation || "not available"}</td>
@@ -50,7 +51,7 @@ export default function ResultsTable({ results, onEdit, hasSearched }) {
                 {item.email || "not available"}
               </td>
               <td className="small">{item.phone || "not available"}</td>
-
+             <td className="small">{item.address || "not available"}</td>
               <td className="text-end">
                 <button
                   className="btn btn-sm btn-primary px-3 rounded-pill"
