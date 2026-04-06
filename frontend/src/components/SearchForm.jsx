@@ -126,7 +126,7 @@ export default function SearchForm({ onSearch, onReset, loading, clearTrigger, r
               value={formData.dept}
               onChange={handleChange}
             >
-              <option value="">All Departments</option>
+              <option value="">Select Department</option>
               {departments.map((dep) => (
                 <option key={dep.id} value={dep.dept_name}>
                   {dep.dept_name}

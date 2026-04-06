@@ -1,5 +1,5 @@
 
-import React, { useState } from "react";
+import React, { useState, useCallback } from "react";
 import { searchAlumni, saveAlumni } from "../api/api";
 import "bootstrap/dist/css/bootstrap.min.css";
 import "bootstrap/dist/js/bootstrap.bundle.min.js";
@@ -19,7 +19,9 @@ export default function AlumniDirectory({ user, onLogout }) {
 
   const [errorMsg, setErrorMsg] = useState("");
 
-  const [rowsPerPage, setRowsPerPage] = useState(10);
+  const [totalCount, setTotalCount] = useState(0);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [hasSearched, setHasSearched] = useState(false);
   const [lastSearchFilters, setLastSearchFilters] = useState(null);
   const [clearFormTrigger, setClearFormTrigger] = useState(0);
@@ -79,26 +81,28 @@ export default function AlumniDirectory({ user, onLogout }) {
     setLoading(true);
     setErrorMsg("");
     setResults([]);
+    setTotalCount(0);
+    setCurrentPage(1);
 
     try {
-      const response = await searchAlumni(filters);
+      const response = await searchAlumni(filters, 1);
 
-      let alumniData = response;
-
-      
       if (response && typeof response === "object" && !Array.isArray(response)) {
         if (response.success === false) {
           setErrorMsg(response.message || "No records found");
           setResults([]);
           return;
         }
-        alumniData = response.data || [];
+        const data = Array.isArray(response.data) ? response.data : [];
+        setResults(applySmartSort(filters, data));
+        setTotalCount(response.total || data.length);
+        setCurrentPage(1);
+      } else {
+        const data = Array.isArray(response) ? response : [];
+        setResults(data);
+        setTotalCount(data.length);
       }
 
-      const normalized = Array.isArray(alumniData) ? alumniData : [];
-      setResults(applySmartSort(filters, normalized));
-      
-      
       setLastSearchFilters(filters);
       setClearFormTrigger(prev => prev + 1);
     } catch (err) {
@@ -151,7 +155,25 @@ export default function AlumniDirectory({ user, onLogout }) {
     }
   };
 
-  const visibleResults = results.slice(0, rowsPerPage);
+  const hasMore = results.length < totalCount;
+  const loadMore = useCallback(async () => {
+    if (loadingMore || !hasMore || !lastSearchFilters) return;
+    setLoadingMore(true);
+    try {
+      const nextPage = currentPage + 1;
+      const response = await searchAlumni(lastSearchFilters, nextPage);
+      const newData = Array.isArray(response?.data) ? response.data : [];
+      if (newData.length > 0) {
+        setResults(prev => [...prev, ...newData]);
+        setCurrentPage(nextPage);
+        setTotalCount(response.total || totalCount);
+      }
+    } catch (err) {
+      // silently fail on load-more
+    } finally {
+      setLoadingMore(false);
+    }
+  }, [loadingMore, hasMore, lastSearchFilters, currentPage, totalCount]);
 
   return (
     <>
@@ -235,34 +257,10 @@ export default function AlumniDirectory({ user, onLogout }) {
                   Results
                   {results.length > 0 && (
                     <span className="badge-soft ms-2">
-                      {visibleResults.length} / {results.length}
+                      {results.length} / {totalCount}
                     </span>
                   )}
                 </h5>
-
-                <div className="d-flex align-items-center gap-2">
-                  <label
-                    htmlFor="rowsPerPage"
-                    className="form-label mb-0 small fw-semibold text-muted"
-                  >
-                    Show
-                  </label>
-
-                  <select
-                    id="rowsPerPage"
-                    className="form-select form-select-sm"
-                    value={rowsPerPage}
-                    onChange={(e) => setRowsPerPage(Number(e.target.value))}
-                    style={{ width: "90px" }}
-                  >
-                    <option value={5}>5</option>
-                    <option value={10}>10</option>
-                    <option value={15}>15</option>
-                    <option value={20}>20</option>
-                    <option value={50}>50</option>
-                    <option value={100}>100</option>
-                  </select>
-                </div>
               </div>
 
               <div
@@ -285,8 +283,11 @@ export default function AlumniDirectory({ user, onLogout }) {
                   </div>
                 ) : (
                   <ResultsTable
-                    results={visibleResults}
+                    results={results}
                     hasSearched={hasSearched}
+                    hasMore={hasMore}
+                    loadingMore={loadingMore}
+                    onLoadMore={loadMore}
                     onEdit={(item) => {
                       setSelectedAlumni(item);
                       setModalOpen(true);

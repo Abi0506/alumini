@@ -80,6 +80,12 @@ const upload = multer({
 router.post("/search", async (req, res) => {
   const filters = req.body;
 
+  // Pagination
+  const PAGE_SIZE = 25;
+  const page = Math.max(1, parseInt(filters?.page, 10) || 1);
+  const offset = (page - 1) * PAGE_SIZE;
+  delete filters?.page;
+
   // Extract event/round filters (handled specially)
   const eventFilterRaw = filters?.event;
   const roundFilterRaw = filters?.round;
@@ -100,15 +106,20 @@ router.post("/search", async (req, res) => {
         year ASC`
     : `ORDER BY name ASC`;
 
+  const countQuery = `SELECT COUNT(*) AS total FROM alumni ${whereClause}`;
+  const [countRows] = await pool.execute(countQuery, params);
+  const total = countRows[0].total;
+
   const query = `
     SELECT *
     FROM alumni
     ${whereClause}
     ${orderBy}
+    LIMIT ${PAGE_SIZE} OFFSET ${offset}
   `;
 
   const [rows] = await pool.execute(query, params);
-  return rows;
+  return { rows, total };
 };
 
   try {
@@ -150,34 +161,11 @@ router.post("/search", async (req, res) => {
 
       
       if (key === 'dept') {
-        try {
-          const [deptRows] = await pool.execute(
-            'SELECT dept_name FROM departments WHERE LOWER(dept_name) = LOWER(?) LIMIT 1',
-            [strValue]
-          );
+        exactConditions.push('LOWER(dept) = LOWER(?)');
+        exactParams.push(strValue);
 
-          if (deptRows.length > 0) {
-            const deptName = deptRows[0].dept_name;
-            exactConditions.push('LOWER(dept) = LOWER(?)');
-            exactParams.push(deptName);
-
-            likeConditions.push('LOWER(dept) LIKE LOWER(?)');
-            likeParams.push(`%${deptName}%`);
-          } else {
-            exactConditions.push('LOWER(dept) LIKE LOWER(?)');
-            exactParams.push(`%${strValue}%`);
-
-            likeConditions.push('LOWER(dept) LIKE LOWER(?)');
-            likeParams.push(`%${strValue}%`);
-          }
-        } catch (err) {
-          // dept lookup failed
-          exactConditions.push('LOWER(dept) LIKE LOWER(?)');
-          exactParams.push(`%${strValue}%`);
-
-          likeConditions.push('LOWER(dept) LIKE LOWER(?)');
-          likeParams.push(`%${strValue}%`);
-        }
+        likeConditions.push('LOWER(dept) LIKE LOWER(?)');
+        likeParams.push(`%${strValue}%`);
 
         continue;
       }
@@ -253,25 +241,31 @@ router.post("/search", async (req, res) => {
     const likeWhere =
       likeConditions.length > 0 ? "WHERE " + likeConditions.join(" AND ") : "";
 
-    let rows = await runQuery(exactWhere, exactParams);
+    let result = await runQuery(exactWhere, exactParams);
 
     
-    if (rows.length === 0) {
-      rows = await runQuery(likeWhere, likeParams);
+    if (result.rows.length === 0 && page === 1) {
+      result = await runQuery(likeWhere, likeParams);
     }
 
-    if (rows.length === 0) {
+    if (result.rows.length === 0) {
       return res.json({
         success: false,
         message: "No matching records found.",
         data: [],
+        total: 0,
+        page,
+        pageSize: PAGE_SIZE,
       });
     }
 
     res.json({
       success: true,
-      message: `Found ${rows.length} records`,
-      data: rows,
+      message: `Found ${result.total} records`,
+      data: result.rows,
+      total: result.total,
+      page,
+      pageSize: PAGE_SIZE,
     });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -444,9 +438,10 @@ router.post("/import-excel", upload.single("file"), async (req, res) => {
 router.get("/departments", async (req, res) => {
   try {
     const [rows] = await pool.query(
-      "SELECT id, dept_name FROM departments ORDER BY dept_name"
+      "SELECT DISTINCT dept AS dept_name FROM alumni WHERE dept IS NOT NULL AND dept != '' ORDER BY dept"
     );
-    res.json(rows);
+    const result = rows.map((r, i) => ({ id: i + 1, dept_name: r.dept_name }));
+    res.json(result);
   } catch (err) {
     res.status(500).json({ error: "Failed to fetch departments" });
   }

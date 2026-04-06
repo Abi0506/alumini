@@ -1,6 +1,6 @@
-import React from "react";
+import React, { useRef, useEffect } from "react";
 
-export default function ResultsTable({ results, onEdit, hasSearched }) {
+export default function ResultsTable({ results, onEdit, hasSearched, hasMore, loadingMore, onLoadMore }) {
   
   if (!hasSearched) return null;
 
@@ -64,6 +64,34 @@ export default function ResultsTable({ results, onEdit, hasSearched }) {
           ))}
         </tbody>
       </table>
+      {hasMore && <LoadMoreSentinel onLoadMore={onLoadMore} loadingMore={loadingMore} />}
+    </div>
+  );
+}
+
+function LoadMoreSentinel({ onLoadMore, loadingMore }) {
+  const ref = useRef(null);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el || loadingMore) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => { if (entry.isIntersecting) onLoadMore(); },
+      { rootMargin: '200px' }
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [onLoadMore, loadingMore]);
+
+  return (
+    <div ref={ref} className="text-center py-3">
+      {loadingMore ? (
+        <div className="spinner-border spinner-border-sm text-primary" role="status">
+          <span className="visually-hidden">Loading...</span>
+        </div>
+      ) : (
+        <span className="text-muted small">Scroll for more...</span>
+      )}
     </div>
   );
 }

@@ -8,9 +8,9 @@ const api = axios.create({
   },
   timeout: 15000,
 });
-export const searchAlumni = async (filters = {}) => {
+export const searchAlumni = async (filters = {}, page = 1) => {
   try {
-    const response = await api.post('/search', filters);
+    const response = await api.post('/search', { ...filters, page });
     
     return response.data;
   } catch (error) {
