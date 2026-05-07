@@ -8,6 +8,14 @@ const api = axios.create({
   },
   timeout: 15000,
 });
+
+api.interceptors.request.use((config) => {
+  const token = localStorage.getItem('token');
+  if (token) {
+    config.headers['Authorization'] = `Bearer ${token}`;
+  }
+  return config;
+});
 export const searchAlumni = async (filters = {}, page = 1) => {
   try {
     const response = await api.post('/search', { ...filters, page });

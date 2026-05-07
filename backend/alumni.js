@@ -3,6 +3,7 @@ const exceljs = require("exceljs");
 const fs = require("fs").promises;
 const path = require("path");
 const pool = require("./db");
+const { authenticateToken } = require('./auth');
 const express = require("express");
 const router = express.Router();
 
@@ -77,7 +78,7 @@ const upload = multer({
 });
 
 
-router.post("/search", async (req, res) => {
+router.post("/search", authenticateToken, async (req, res) => {
   const filters = req.body;
 
   // Pagination
@@ -170,69 +171,69 @@ router.post("/search", async (req, res) => {
         continue;
       }
 
-      // Handle event / payment filtering: ensure only paid participants are returned
-      if (eventFilterRaw) {
-        const raw = String(eventFilterRaw || '').trim();
-        if (raw) {
-          const ev = raw.replace(/[^a-z0-9]+/gi, '_').toLowerCase();
-
-          const roundNum = roundFilterRaw ? Number(roundFilterRaw) : null;
-
-          // candidate column names to check
-          const candidates = [];
-          candidates.push(`${ev}_paid`);
-          candidates.push(`paid_${ev}`);
-          candidates.push(`${ev}_round1_paid`);
-          candidates.push(`${ev}_round2_paid`);
-          candidates.push(`${ev}_paid_round1`);
-          candidates.push(`${ev}_paid_round2`);
-          candidates.push(`${ev}_paid_round${roundNum}`);
-          candidates.push(`${ev}_round${roundNum}_paid`);
-
-          const existing = [];
-          for (const col of candidates) {
-            if (!col) continue;
-            if (existing.includes(col)) continue;
-            // eslint-disable-next-line no-await-in-loop
-            if (await columnExists(col)) existing.push(col);
-          }
-
-          // prefer round-specific columns if round provided
-          if (roundNum && !Number.isNaN(roundNum)) {
-            const roundColCandidates = existing.filter(c => c.includes(`round${roundNum}`) || c.includes(`round_${roundNum}`) || c.endsWith(`_round${roundNum}`));
-            const roundCol = roundColCandidates[0] || existing.find(c => c === `${ev}_paid` || c === `paid_${ev}`);
-            if (roundCol) {
-              const round1Col = existing.find(c => c.includes('round1')) || null;
-              exactConditions.push(`${roundCol} = ?`);
-              exactParams.push(1);
-              if (round1Col && round1Col !== roundCol) {
-                exactConditions.push(`${round1Col} = ?`);
-                exactParams.push(1);
-              }
-            }
-          } else {
-            // no round specified: if schema indicates round1 exists (suggesting multiple rounds), require round1 paid
-            const round1Col = existing.find(c => c.includes('round1'));
-            if (round1Col) {
-              exactConditions.push(`${round1Col} = ?`);
-              exactParams.push(1);
-            } else if (existing.length > 0) {
-              const generic = existing.find(c => c === `${ev}_paid` || c === `paid_${ev}`) || existing[0];
-              if (generic) {
-                exactConditions.push(`${generic} = ?`);
-                exactParams.push(1);
-              }
-            }
-          }
-        }
-      }
-
       exactConditions.push(`LOWER(${key}) LIKE LOWER(?)`);
       exactParams.push(`%${strValue}%`);
 
       likeConditions.push(`LOWER(${key}) LIKE LOWER(?)`);
       likeParams.push(`%${strValue}%`);
 
+    }
+
+    // Handle event / payment filtering: ensure only paid participants are returned
+    if (eventFilterRaw) {
+      const raw = String(eventFilterRaw || '').trim();
+      if (raw) {
+        const ev = raw.replace(/[^a-z0-9]+/gi, '_').toLowerCase();
+
+        const roundNum = roundFilterRaw ? Number(roundFilterRaw) : null;
+
+        // candidate column names to check
+        const candidates = [];
+        candidates.push(`${ev}_paid`);
+        candidates.push(`paid_${ev}`);
+        candidates.push(`${ev}_round1_paid`);
+        candidates.push(`${ev}_round2_paid`);
+        candidates.push(`${ev}_paid_round1`);
+        candidates.push(`${ev}_paid_round2`);
+        candidates.push(`${ev}_paid_round${roundNum}`);
+        candidates.push(`${ev}_round${roundNum}_paid`);
+
+        const existing = [];
+        for (const col of candidates) {
+          if (!col) continue;
+          if (existing.includes(col)) continue;
+          // eslint-disable-next-line no-await-in-loop
+          if (await columnExists(col)) existing.push(col);
+        }
+
+        // prefer round-specific columns if round provided
+        if (roundNum && !Number.isNaN(roundNum)) {
+          const roundColCandidates = existing.filter(c => c.includes(`round${roundNum}`) || c.includes(`round_${roundNum}`) || c.endsWith(`_round${roundNum}`));
+          const roundCol = roundColCandidates[0] || existing.find(c => c === `${ev}_paid` || c === `paid_${ev}`);
+          if (roundCol) {
+            const round1Col = existing.find(c => c.includes('round1')) || null;
+            exactConditions.push(`${roundCol} = ?`);
+            exactParams.push(1);
+            if (round1Col && round1Col !== roundCol) {
+              exactConditions.push(`${round1Col} = ?`);
+              exactParams.push(1);
+            }
+          }
+        } else {
+          // no round specified: if schema indicates round1 exists (suggesting multiple rounds), require round1 paid
+          const round1Col = existing.find(c => c.includes('round1'));
+          if (round1Col) {
+            exactConditions.push(`${round1Col} = ?`);
+            exactParams.push(1);
+          } else if (existing.length > 0) {
+            const generic = existing.find(c => c === `${ev}_paid` || c === `paid_${ev}`) || existing[0];
+            if (generic) {
+              exactConditions.push(`${generic} = ?`);
+              exactParams.push(1);
+            }
+          }
+        }
+      }
     }
 
     const exactWhere =
@@ -272,7 +273,7 @@ router.post("/search", async (req, res) => {
   }
 });
 
-router.post("/", async (req, res) => {
+router.post("/", authenticateToken, async (req, res) => {
   const { roll, name, phone, email, dept, designation, year, address, company } = req.body;
 
   
@@ -317,7 +318,7 @@ router.post("/", async (req, res) => {
   }
 });
 
-router.post("/import-excel", upload.single("file"), async (req, res) => {
+router.post("/import-excel", authenticateToken, upload.single("file"), async (req, res) => {
   if (!req.file) return res.status(400).json({ error: "No file uploaded" });
 
   const filePath = req.file.path;
@@ -435,7 +436,7 @@ router.post("/import-excel", upload.single("file"), async (req, res) => {
 
 
  
-router.get("/departments", async (req, res) => {
+router.get("/departments", authenticateToken, async (req, res) => {
   try {
     const [rows] = await pool.query(
       "SELECT DISTINCT dept AS dept_name FROM alumni WHERE dept IS NOT NULL AND dept != '' ORDER BY dept"

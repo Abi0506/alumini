@@ -101,7 +101,6 @@ export default function AlumniDirectory({ user, onLogout }) {
       }
 
       setLastSearchFilters(filters);
-      setClearFormTrigger(prev => prev + 1);
     } catch (err) {
       setErrorMsg(err.message || "Search failed. Please try again.");
       setResults([]);

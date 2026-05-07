@@ -45,8 +45,20 @@ function App() {
     const savedUser = localStorage.getItem('user');
     
     if (savedToken && savedUser) {
-      setUser(JSON.parse(savedUser));
-      setIsAuthenticated(true);
+      try {
+        const payload = JSON.parse(atob(savedToken.split('.')[1]));
+        const isExpired = payload.exp * 1000 < Date.now();
+        if (isExpired) {
+          localStorage.removeItem('token');
+          localStorage.removeItem('user');
+        } else {
+          setUser(JSON.parse(savedUser));
+          setIsAuthenticated(true);
+        }
+      } catch {
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+      }
     }
   }, []);
 
