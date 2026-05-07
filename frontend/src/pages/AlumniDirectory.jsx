@@ -1,5 +1,5 @@
 
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useEffect } from "react";
 import { searchAlumni, saveAlumni } from "../api/api";
 import "bootstrap/dist/css/bootstrap.min.css";
 import "bootstrap/dist/js/bootstrap.bundle.min.js";
@@ -27,6 +27,13 @@ export default function AlumniDirectory({ user, onLogout }) {
   const [clearFormTrigger, setClearFormTrigger] = useState(0);
   const [restoreFormTrigger, setRestoreFormTrigger] = useState(0);
   const [showUserManagement, setShowUserManagement] = useState(false);
+
+  useEffect(() => {
+    document.body.classList.add('main-bg');
+    return () => {
+      document.body.classList.remove('main-bg');
+    };
+  }, []);
 
   const normalizeEmail = (value = "") => String(value || "").trim().toLowerCase();
   const normalizePhone = (value = "") => String(value || "").replace(/\D/g, "");

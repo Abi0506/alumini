@@ -17,6 +17,13 @@ export default function Login({ onLoginSuccess, authError }) {
     }
   }, [authError]);
 
+  useEffect(() => {
+    document.body.classList.add('login-bg');
+    return () => {
+      document.body.classList.remove('login-bg');
+    };
+  }, []);
+
   const handleEmailLogin = async (e) => {
     e.preventDefault();
     setError('');

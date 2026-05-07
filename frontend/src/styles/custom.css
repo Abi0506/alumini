@@ -19,6 +19,7 @@
 
 body {
   margin: 0;
+  position: relative;
   font-family: 'Space Grotesk', system-ui, -apple-system, sans-serif;
   color: var(--ink);
   background:
@@ -26,6 +27,31 @@ body {
     radial-gradient(900px 500px at 90% 20%, rgba(15, 118, 110, 0.12), transparent 60%),
     linear-gradient(180deg, #faf7f2 0%, #f2efe9 100%);
   min-height: 100vh;
+}
+
+body.login-bg {
+  background: #f4f1ec;
+}
+
+body.login-bg::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background: url('/college bg.jpeg') center/cover no-repeat;
+  opacity: 0.4;
+  z-index: 0;
+  pointer-events: none;
+}
+
+body.main-bg {
+  background:
+    linear-gradient(rgba(244, 241, 236, 0.6), rgba(244, 241, 236, 0.6)),
+    url('/college bg.jpeg') center/cover no-repeat fixed;
+}
+
+body.login-bg #root {
+  position: relative;
+  z-index: 1;
 }
 
 a {
