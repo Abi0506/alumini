@@ -65,17 +65,7 @@ export default function AlumniDirectory({ user, onLogout }) {
       .map((entry) => entry.item);
   };
 
-  const handleSearch = async (filters, skipEmptyCheck = false) => {
-    
-    if (!skipEmptyCheck) {
-      const hasData = Object.values(filters).some(val => val && String(val).trim() !== '');
-      if (!hasData) {
-        setHasSearched(false);
-        setResults([]);
-        setErrorMsg("");
-        return;
-      }
-    }
+  const handleSearch = async (filters) => {
 
     setHasSearched(true);
     setLoading(true);
@@ -114,9 +104,13 @@ export default function AlumniDirectory({ user, onLogout }) {
   };
 
   const handleReset = () => {
-    if (lastSearchFilters) {
-      setRestoreFormTrigger(prev => prev + 1);
-    }
+    setLastSearchFilters(null);
+    setClearFormTrigger(prev => prev + 1);
+    setHasSearched(false);
+    setResults([]);
+    setErrorMsg("");
+    setTotalCount(0);
+    setCurrentPage(1);
   };
 
   const handleSave = async (data) => {
