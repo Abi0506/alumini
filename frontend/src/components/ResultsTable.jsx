@@ -1,6 +1,6 @@
 import React, { useRef, useEffect } from "react";
 
-export default function ResultsTable({ results, onEdit, hasSearched, hasMore, loadingMore, onLoadMore }) {
+export default function ResultsTable({ results, onEdit, hasSearched, hasMore, loadingMore, onLoadMore, canEdit = true }) {
   
   if (!hasSearched) return null;
 
@@ -31,7 +31,7 @@ export default function ResultsTable({ results, onEdit, hasSearched, hasMore, lo
             <th className="small">Email</th>
             <th className="small">Phone</th>
              <th className="small">Address</th>
-            <th className="text-end small">Action</th>
+            {canEdit && <th className="text-end small">Action</th>}
           </tr>
         </thead>
 
@@ -52,14 +52,16 @@ export default function ResultsTable({ results, onEdit, hasSearched, hasMore, lo
               </td>
               <td className="small">{item.phone || "not available"}</td>
              <td className="small">{item.address || "not available"}</td>
-              <td className="text-end">
-                <button
-                  className="btn btn-sm btn-primary px-3 rounded-pill"
-                  onClick={() => onEdit(item)}
-                >
-                  Edit
-                </button>
-              </td>
+              {canEdit && (
+                <td className="text-end">
+                  <button
+                    className="btn btn-sm btn-primary px-3 rounded-pill"
+                    onClick={() => onEdit(item)}
+                  >
+                    Edit
+                  </button>
+                </td>
+              )}
             </tr>
           ))}
         </tbody>

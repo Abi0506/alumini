@@ -49,9 +49,69 @@ body.main-bg {
     url('/college bg.jpeg') center/cover no-repeat fixed;
 }
 
+.site-header {
+  position: sticky;
+  top: 0;
+  z-index: 1030;
+  background: #ffffff;
+  border-bottom: 1px solid rgba(15, 23, 42, 0.12);
+}
+
+.site-header__inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 8px 16px;
+}
+
+.site-header__image {
+  height: 52px;
+  width: auto;
+  display: block;
+}
+
+.site-header__title {
+  flex: 1;
+  text-align: center;
+  font-weight: 700;
+  font-size: 1.25rem;
+  letter-spacing: 0.02em;
+  color: #1f2937;
+  transform: translateX(-250px);
+}
+
+.site-header__spacer {
+  width: 52px;
+  height: 1px;
+  flex-shrink: 0;
+}
+
 body.login-bg #root {
   position: relative;
   z-index: 1;
+}
+
+body.login-bg .site-header {
+  position: relative;
+  z-index: 1045;
+}
+
+body.login-bg .site-footer {
+  position: relative;
+  z-index: 1045;
+}
+
+.page-shell {
+  min-height: calc(100vh - 68px);
+  display: flex;
+  flex-direction: column;
+}
+
+.page-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
 }
 
 a {
@@ -61,6 +121,60 @@ a {
 
 .app-shell {
   min-height: 100vh;
+}
+
+.welcome-text {
+  font-size: 1.1rem;
+  font-weight: 600;
+}
+
+.site-footer {
+  position: sticky;
+  bottom: 0;
+  z-index: 1030;
+  margin-top: auto;
+  background: #324354;
+  color: #ffffff;
+  text-align: center;
+  padding: 8px 10px;
+  font-size: 0.9rem;
+}
+
+.site-footer__line + .site-footer__line {
+  margin-top: 6px;
+}
+
+.site-footer__accent {
+  color: #38d07a;
+  font-weight: 700;
+  position: relative;
+  cursor: help;
+}
+
+.site-footer__accent::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  left: 50%;
+  bottom: 130%;
+  transform: translateX(-50%);
+  white-space: pre-line;
+  background: #0f172a;
+  color: #ffffff;
+  padding: 8px 10px;
+  border-radius: 8px;
+  font-size: 0.8rem;
+  line-height: 1.25;
+  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.3);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s ease;
+  min-width: 220px;
+  text-align: center;
+  z-index: 10;
+}
+
+.site-footer__accent:hover::after {
+  opacity: 1;
 }
 
 .hero {
@@ -297,6 +411,14 @@ a {
 }
 
 @media (max-width: 768px) {
+  .site-header__inner {
+    padding: 8px 16px;
+  }
+
+  .site-header__image {
+    height: 56px;
+  }
+
   .hero {
     padding: 18px 0 24px;
   }

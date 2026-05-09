@@ -22,7 +22,7 @@ export default function ResetPassword() {
     setSuccess('');
 
     if (!token) {
-      setError('Reset token missing. Use the link from your email.');
+      setError('Verification code missing. Enter the code from your email.');
       return;
     }
 
@@ -64,6 +64,18 @@ export default function ResetPassword() {
         {success && <div className="alert alert-success">{success}</div>}
 
         <form onSubmit={handleSubmit}>
+          <div className="mb-3">
+            <label className="form-label">Verification code</label>
+            <input
+              type="text"
+              className="form-control"
+              value={token}
+              onChange={(e) => setToken(e.target.value)}
+              required
+              inputMode="numeric"
+            />
+          </div>
+
           <div className="mb-3">
             <label className="form-label">New password</label>
             <input

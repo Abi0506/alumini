@@ -181,12 +181,11 @@ export default function AlumniDirectory({ user, onLogout }) {
         <main className="container content" style={{ maxWidth: "1100px" }}>
           <div className="d-flex justify-content-between align-items-center mb-4 mt-4">
             <div>
-              <h4 className="mb-0 fw-bold">Alumni Directory</h4>
               {user && (
-                <small className="text-muted">
+                <div className="welcome-text text-muted">
                   Welcome, {user.name} 
                   {user.role === 'admin' && <span className="badge bg-danger ms-2">Admin</span>}
-                </small>
+                </div>
               )}
             </div>
             <div className="d-flex gap-2 align-items-center">
@@ -282,16 +281,17 @@ export default function AlumniDirectory({ user, onLogout }) {
                     </div>
                   </div>
                 ) : (
-                  <ResultsTable
-                    results={results}
-                    hasSearched={hasSearched}
-                    hasMore={hasMore}
-                    loadingMore={loadingMore}
-                    onLoadMore={loadMore}
-                    onEdit={(item) => {
-                      setSelectedAlumni(item);
-                      setModalOpen(true);
-                    }}
+                    <ResultsTable
+                      results={results}
+                      hasSearched={hasSearched}
+                      hasMore={hasMore}
+                      loadingMore={loadingMore}
+                      onLoadMore={loadMore}
+                      onEdit={(item) => {
+                        setSelectedAlumni(item);
+                        setModalOpen(true);
+                      }}
+                      canEdit={user?.role === 'admin'}
                   />
                 )}
               </div>
