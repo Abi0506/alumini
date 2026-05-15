@@ -17,9 +17,18 @@ export default function Login({ onLoginSuccess, authError }) {
     }
   }, [authError]);
 
+  const isPsgitechEmail = (value) =>
+    String(value || '').trim().toLowerCase().endsWith('@psgitech.ac.in');
+
   const handleEmailLogin = async (e) => {
     e.preventDefault();
     setError('');
+
+    if (!isPsgitechEmail(email)) {
+      setError('Email login requires an @psgitech.ac.in email address.');
+      return;
+    }
+
     setLoading(true);
 
     try {

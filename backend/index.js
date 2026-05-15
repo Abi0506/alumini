@@ -1,4 +1,5 @@
-require('dotenv').config();
+const path = require('path');
+require('dotenv').config({ path: path.join(__dirname, '.env') });
 const express = require('express');
 const cors = require('cors');
 const app  = express();
@@ -19,7 +20,7 @@ const authRouter = require('./auth');
 app.use('/alumni', alumniRouter);
 app.use('/auth', authRouter);
 
-const PORT  = 5000;
+const PORT  = process.env.PORT || 5000;
 
 app.listen(PORT , ()=>{
     const hasEmailConfig = process.env.EMAIL_USER && 

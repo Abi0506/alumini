@@ -1,8 +1,10 @@
 
-import React, { useState, useCallback } from "react";
-import { searchAlumni, saveAlumni } from "../api/api";
+import React, { useState, useCallback, useMemo } from "react";
+import { searchAlumni, searchAlumniWithAI, saveAlumni } from "../api/api";
 import "bootstrap/dist/css/bootstrap.min.css";
 import "bootstrap/dist/js/bootstrap.bundle.min.js";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
 
 import SearchForm from "../components/SearchForm";
 import ResultsTable from "../components/ResultsTable";
@@ -11,8 +13,11 @@ import ExcelUpload from "../components/ExcelUpload";
 import UserManagement from "../components/UserManagement";
 
 export default function AlumniDirectory({ user, onLogout }) {
+  const canEdit = user?.role === "admin";
   const [results, setResults] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [sortConfig, setSortConfig] = useState({ key: null, direction: "asc" });
+  const [searchInsight, setSearchInsight] = useState(null);
 
   const [modalOpen, setModalOpen] = useState(false);
   const [selectedAlumni, setSelectedAlumni] = useState(null);
@@ -23,10 +28,11 @@ export default function AlumniDirectory({ user, onLogout }) {
   const [currentPage, setCurrentPage] = useState(1);
   const [loadingMore, setLoadingMore] = useState(false);
   const [hasSearched, setHasSearched] = useState(false);
-  const [lastSearchFilters, setLastSearchFilters] = useState(null);
+  const [lastSearchRequest, setLastSearchRequest] = useState(null);
   const [clearFormTrigger, setClearFormTrigger] = useState(0);
   const [restoreFormTrigger, setRestoreFormTrigger] = useState(0);
   const [showUserManagement, setShowUserManagement] = useState(false);
+  const [exportingPdf, setExportingPdf] = useState(false);
 
   const normalizeEmail = (value = "") => String(value || "").trim().toLowerCase();
   const normalizePhone = (value = "") => String(value || "").replace(/\D/g, "");
@@ -65,6 +71,48 @@ export default function AlumniDirectory({ user, onLogout }) {
       .map((entry) => entry.item);
   };
 
+  const compareValues = (left, right) => {
+    const leftValue = left ?? "";
+    const rightValue = right ?? "";
+
+    const leftNumber = Number(leftValue);
+    const rightNumber = Number(rightValue);
+    const bothNumeric = leftValue !== "" && rightValue !== "" && !Number.isNaN(leftNumber) && !Number.isNaN(rightNumber);
+
+    if (bothNumeric) {
+      return leftNumber - rightNumber;
+    }
+
+    return String(leftValue).localeCompare(String(rightValue), undefined, {
+      numeric: true,
+      sensitivity: "base",
+    });
+  };
+
+  const sortedResults = useMemo(() => {
+    if (!sortConfig.key) return results;
+
+    const sorted = [...results].sort((a, b) => {
+      const comparison = compareValues(a?.[sortConfig.key], b?.[sortConfig.key]);
+      return sortConfig.direction === "asc" ? comparison : -comparison;
+    });
+
+    return sorted;
+  }, [results, sortConfig]);
+
+  const handleSort = useCallback((key) => {
+    setSortConfig((prev) => {
+      if (prev.key === key) {
+        return {
+          key,
+          direction: prev.direction === "asc" ? "desc" : "asc",
+        };
+      }
+
+      return { key, direction: "asc" };
+    });
+  }, []);
+
   const handleSearch = async (filters, skipEmptyCheck = false) => {
     
     if (!skipEmptyCheck) {
@@ -73,6 +121,7 @@ export default function AlumniDirectory({ user, onLogout }) {
         setHasSearched(false);
         setResults([]);
         setErrorMsg("");
+        setSearchInsight(null);
         return;
       }
     }
@@ -80,6 +129,7 @@ export default function AlumniDirectory({ user, onLogout }) {
     setHasSearched(true);
     setLoading(true);
     setErrorMsg("");
+    setSearchInsight(null);
     setResults([]);
     setTotalCount(0);
     setCurrentPage(1);
@@ -103,7 +153,11 @@ export default function AlumniDirectory({ user, onLogout }) {
         setTotalCount(data.length);
       }
 
-      setLastSearchFilters(filters);
+      setLastSearchRequest({
+        type: "standard",
+        filters,
+        aiQuery: "",
+      });
       setClearFormTrigger(prev => prev + 1);
     } catch (err) {
       setErrorMsg(err.message || "Search failed. Please try again.");
@@ -113,13 +167,65 @@ export default function AlumniDirectory({ user, onLogout }) {
     }
   };
 
+  const handleAISearch = async (query) => {
+    const trimmedQuery = String(query || "").trim();
+
+    if (!trimmedQuery) {
+      setHasSearched(false);
+      setResults([]);
+      setErrorMsg("");
+      setSearchInsight(null);
+      return;
+    }
+
+    setHasSearched(true);
+    setLoading(true);
+    setErrorMsg("");
+    setSearchInsight(null);
+    setResults([]);
+    setTotalCount(0);
+    setCurrentPage(1);
+
+    try {
+      const response = await searchAlumniWithAI(trimmedQuery, 1);
+      const data = Array.isArray(response?.data) ? response.data : [];
+
+      if (!response?.success || data.length === 0) {
+        setErrorMsg(response?.message || "No records found");
+        setResults([]);
+        return;
+      }
+
+      setResults(data);
+      setTotalCount(response.total || data.length);
+      setCurrentPage(1);
+      setSearchInsight(response.interpretation || null);
+      setLastSearchRequest({
+        type: "ai",
+        filters: null,
+        aiQuery: trimmedQuery,
+      });
+      setClearFormTrigger((prev) => prev + 1);
+    } catch (err) {
+      setErrorMsg(err.message || "AI search failed. Please try again.");
+      setResults([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleReset = () => {
-    if (lastSearchFilters) {
+    if (lastSearchRequest) {
       setRestoreFormTrigger(prev => prev + 1);
     }
   };
 
   const handleSave = async (data) => {
+    if (!canEdit) {
+      setErrorMsg("Only admins can edit alumni records.");
+      return;
+    }
+
     try {
       await saveAlumni(data);
 
@@ -157,11 +263,14 @@ export default function AlumniDirectory({ user, onLogout }) {
 
   const hasMore = results.length < totalCount;
   const loadMore = useCallback(async () => {
-    if (loadingMore || !hasMore || !lastSearchFilters) return;
+    if (loadingMore || !hasMore || !lastSearchRequest) return;
     setLoadingMore(true);
     try {
       const nextPage = currentPage + 1;
-      const response = await searchAlumni(lastSearchFilters, nextPage);
+      const response =
+        lastSearchRequest.type === "ai"
+          ? await searchAlumniWithAI(lastSearchRequest.aiQuery, nextPage)
+          : await searchAlumni(lastSearchRequest.filters, nextPage);
       const newData = Array.isArray(response?.data) ? response.data : [];
       if (newData.length > 0) {
         setResults(prev => [...prev, ...newData]);
@@ -173,7 +282,89 @@ export default function AlumniDirectory({ user, onLogout }) {
     } finally {
       setLoadingMore(false);
     }
-  }, [loadingMore, hasMore, lastSearchFilters, currentPage, totalCount]);
+  }, [loadingMore, hasMore, lastSearchRequest, currentPage, totalCount]);
+
+  const handleDownloadPdf = useCallback(() => {
+    if (!sortedResults.length || exportingPdf) return;
+
+    setExportingPdf(true);
+    try {
+      const doc = new jsPDF({ orientation: "landscape", unit: "pt", format: "a4" });
+      const pageWidth = doc.internal.pageSize.getWidth();
+      const generatedAt = new Date();
+
+      doc.setFillColor(22, 34, 42);
+      doc.rect(0, 0, pageWidth, 86, "F");
+
+      doc.setTextColor(255, 255, 255);
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(20);
+      doc.text("Alumni Directory Search Results", 40, 48);
+
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(10);
+      doc.text(`Generated: ${generatedAt.toLocaleString()}`, 40, 68);
+
+      doc.setTextColor(27, 27, 27);
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(11);
+      doc.text(`Total Records: ${sortedResults.length}`, 40, 110);
+
+      if (searchInsight?.summary) {
+        doc.setFontSize(10);
+        doc.setTextColor(70, 70, 70);
+        doc.text(`AI Summary: ${searchInsight.summary}`, 40, 128, { maxWidth: pageWidth - 80 });
+      }
+
+      const tableStartY = searchInsight?.summary ? 148 : 130;
+      const body = sortedResults.map((item) => [
+        item.roll || "not available",
+        item.name || "not available",
+        item.dept || "not available",
+        item.year || "not available",
+        item.company || "not available",
+        item.designation || "not available",
+        item.email || "not available",
+        item.phone || "not available",
+      ]);
+
+      autoTable(doc, {
+        startY: tableStartY,
+        head: [["Roll", "Name", "Dept", "Year", "Company", "Designation", "Email", "Phone"]],
+        body,
+        styles: {
+          fontSize: 8,
+          cellPadding: 5,
+          overflow: "linebreak",
+          valign: "middle",
+        },
+        headStyles: {
+          fillColor: [31, 42, 55],
+          textColor: [255, 255, 255],
+          fontStyle: "bold",
+        },
+        alternateRowStyles: {
+          fillColor: [248, 250, 252],
+        },
+        columnStyles: {
+          0: { cellWidth: 60 },
+          1: { cellWidth: 100 },
+          2: { cellWidth: 60 },
+          3: { cellWidth: 45 },
+          4: { cellWidth: 95 },
+          5: { cellWidth: 95 },
+          6: { cellWidth: 130 },
+          7: { cellWidth: 85 },
+        },
+        margin: { left: 24, right: 24, bottom: 28 },
+      });
+
+      const timestamp = generatedAt.toISOString().slice(0, 19).replace(/[:T]/g, "-");
+      doc.save(`alumni-search-results-${timestamp}.pdf`);
+    } finally {
+      setExportingPdf(false);
+    }
+  }, [sortedResults, searchInsight, exportingPdf]);
 
   return (
     <>
@@ -190,7 +381,7 @@ export default function AlumniDirectory({ user, onLogout }) {
               )}
             </div>
             <div className="d-flex gap-2 align-items-center">
-              {user?.role === 'admin' && (
+              {canEdit && (
                 <button
                   className="btn btn-outline-secondary btn-sm"
                   onClick={() => setShowUserManagement(true)}
@@ -198,22 +389,26 @@ export default function AlumniDirectory({ user, onLogout }) {
                   Manage Users
                 </button>
               )}
-              <button
-                className="btn btn-outline-primary btn-sm"
-                data-bs-toggle="modal"
-                data-bs-target="#excelUploadModal"
-              >
-                Import Excel
-              </button>
-              <button
-                className="btn btn-primary btn-sm"
-                onClick={() => {
-                  setSelectedAlumni(null);
-                  setModalOpen(true);
-                }}
-              >
-                Add New
-              </button>
+              {canEdit && (
+                <button
+                  className="btn btn-outline-primary btn-sm"
+                  data-bs-toggle="modal"
+                  data-bs-target="#excelUploadModal"
+                >
+                  Import Excel
+                </button>
+              )}
+              {canEdit && (
+                <button
+                  className="btn btn-primary btn-sm"
+                  onClick={() => {
+                    setSelectedAlumni(null);
+                    setModalOpen(true);
+                  }}
+                >
+                  Add New
+                </button>
+              )}
               <button
                 className="btn btn-outline-danger btn-sm"
                 onClick={onLogout}
@@ -227,11 +422,15 @@ export default function AlumniDirectory({ user, onLogout }) {
             <div className="section-title">Search Filters</div>
             <SearchForm 
               onSearch={handleSearch} 
+              onAISearch={handleAISearch}
               onReset={handleReset} 
               loading={loading} 
               clearTrigger={clearFormTrigger}
               restoreTrigger={restoreFormTrigger}
-              restoreData={lastSearchFilters}
+              restoreData={{
+                filters: lastSearchRequest?.type === "standard" ? lastSearchRequest.filters : null,
+                aiQuery: lastSearchRequest?.type === "ai" ? lastSearchRequest.aiQuery : "",
+              }}
             />
           </div>
 
@@ -261,7 +460,22 @@ export default function AlumniDirectory({ user, onLogout }) {
                     </span>
                   )}
                 </h5>
+                {results.length > 0 && (
+                  <button
+                    className="btn btn-outline-primary btn-sm"
+                    onClick={handleDownloadPdf}
+                    disabled={exportingPdf}
+                  >
+                    {exportingPdf ? "Preparing PDF..." : "Download PDF"}
+                  </button>
+                )}
               </div>
+
+              {searchInsight?.summary && (
+                <div className="alert alert-info rounded-4 ai-search-summary" role="status">
+                  <strong>AI interpretation:</strong> {searchInsight.summary}
+                </div>
+              )}
 
               <div
                 className="results-panel overflow-auto"
@@ -283,12 +497,16 @@ export default function AlumniDirectory({ user, onLogout }) {
                   </div>
                 ) : (
                   <ResultsTable
-                    results={results}
+                    results={sortedResults}
                     hasSearched={hasSearched}
                     hasMore={hasMore}
                     loadingMore={loadingMore}
                     onLoadMore={loadMore}
+                    sortConfig={sortConfig}
+                    onSort={handleSort}
+                    canEdit={canEdit}
                     onEdit={(item) => {
+                      if (!canEdit) return;
                       setSelectedAlumni(item);
                       setModalOpen(true);
                     }}
@@ -340,15 +558,17 @@ export default function AlumniDirectory({ user, onLogout }) {
       </div>
 
       {/* ✅ Add/Edit Modal */}
-      <AlumniModal
-        isOpen={modalOpen}
-        onClose={() => setModalOpen(false)}
-        onSave={handleSave}
-        initialData={selectedAlumni}
-      />
+      {canEdit && (
+        <AlumniModal
+          isOpen={modalOpen}
+          onClose={() => setModalOpen(false)}
+          onSave={handleSave}
+          initialData={selectedAlumni}
+        />
+      )}
 
       {/* ✅ User Management Modal (Admin only) */}
-      {user?.role === 'admin' && (
+      {canEdit && (
         <UserManagement
           isOpen={showUserManagement}
           onClose={() => setShowUserManagement(false)}

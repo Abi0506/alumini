@@ -8,6 +8,11 @@ const api = axios.create({
   },
   timeout: 15000,
 });
+
+const getAuthHeaders = () => {
+  const token = localStorage.getItem('token');
+  return token ? { Authorization: `Bearer ${token}` } : {};
+};
 export const searchAlumni = async (filters = {}, page = 1) => {
   try {
     const response = await api.post('/search', { ...filters, page });
@@ -18,9 +23,20 @@ export const searchAlumni = async (filters = {}, page = 1) => {
   }
 };
 
+export const searchAlumniWithAI = async (query, page = 1) => {
+  try {
+    const response = await api.post('/ai-search', { query, page });
+    return response.data;
+  } catch (error) {
+    throw new Error(error.response?.data?.error || 'AI search failed');
+  }
+};
+
 export const saveAlumni = async (alumniData) => {
   try {
-    const response = await api.post('/', alumniData);
+    const response = await api.post('/', alumniData, {
+      headers: getAuthHeaders(),
+    });
     return response.data;
   } catch (error) {
     throw new Error(error.response?.data?.error || 'Save failed');
@@ -33,7 +49,7 @@ export const importExcel = async (file) => {
 
   try {
     const response = await api.post('/import-excel', formData, {
-      headers: { 'Content-Type': 'multipart/form-data' },
+      headers: { 'Content-Type': 'multipart/form-data', ...getAuthHeaders() },
     });
     return response.data;
   } catch (error) {

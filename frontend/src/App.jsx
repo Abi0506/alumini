@@ -11,14 +11,45 @@ function App() {
   const [authError, setAuthError] = useState(null);
 
   useEffect(() => {
-   
     const urlParams = new URLSearchParams(window.location.search);
     const token = urlParams.get('token');
     const userParam = urlParams.get('user');
     const error = urlParams.get('error');
+    const verified = urlParams.get('verified');
+    const blocked = urlParams.get('blocked');
+
+    const syncSession = async (savedToken) => {
+      try {
+        const response = await fetch('http://localhost:5000/auth/me', {
+          headers: { Authorization: `Bearer ${savedToken}` },
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+          throw new Error(data.error || 'Session validation failed');
+        }
+
+        setUser(data);
+        setIsAuthenticated(true);
+        localStorage.setItem('user', JSON.stringify(data));
+      } catch (sessionErr) {
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+        setUser(null);
+        setIsAuthenticated(false);
+        setAuthError(sessionErr.message || 'Session validation failed');
+      }
+    };
 
     if (error) {
-      setAuthError('Google authentication failed. Please try again.');
+      setAuthError(error === 'blocked' ? 'This account has been blocked.' : 'Google authentication failed. Please try again.');
+      window.history.replaceState({}, document.title, window.location.pathname);
+      return;
+    }
+
+    if (blocked === '1') {
+      setAuthError('The account has been blocked successfully.');
       window.history.replaceState({}, document.title, window.location.pathname);
       return;
     }
@@ -40,13 +71,19 @@ function App() {
       return;
     }
 
-    
     const savedToken = localStorage.getItem('token');
     const savedUser = localStorage.getItem('user');
-    
+
     if (savedToken && savedUser) {
-      setUser(JSON.parse(savedUser));
-      setIsAuthenticated(true);
+      syncSession(savedToken);
+    }
+
+    if (verified === '1') {
+      setAuthError('Email verified successfully. Please log in.');
+      window.history.replaceState({}, document.title, window.location.pathname);
+    } else if (verified === '0') {
+      setAuthError('Email verification failed.');
+      window.history.replaceState({}, document.title, window.location.pathname);
     }
   }, []);
 

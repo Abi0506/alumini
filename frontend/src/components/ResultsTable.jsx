@@ -1,7 +1,18 @@
 import React, { useRef, useEffect } from "react";
 
-export default function ResultsTable({ results, onEdit, hasSearched, hasMore, loadingMore, onLoadMore }) {
-  
+const columns = [
+  { key: "roll", label: "Roll", className: "small" },
+  { key: "name", label: "Name" },
+  { key: "dept", label: "Dept", className: "small" },
+  { key: "year", label: "Year", className: "small" },
+  { key: "company", label: "Company", className: "small" },
+  { key: "designation", label: "Designation", className: "small" },
+  { key: "email", label: "Email", className: "small" },
+  { key: "phone", label: "Phone", className: "small" },
+  { key: "address", label: "Address", className: "small" },
+];
+
+export default function ResultsTable({ results, onEdit, canEdit = false, hasSearched, hasMore, loadingMore, onLoadMore, sortConfig, onSort }) {
   if (!hasSearched) return null;
 
  
@@ -19,19 +30,25 @@ export default function ResultsTable({ results, onEdit, hasSearched, hasMore, lo
       <table className="table table-hover align-middle mb-0">
         <thead>
           <tr>
-            <th className="small">Roll</th>
-            <th>Name</th>
-            <th className="small">Dept</th>
-            
-            <th className="small">Year</th>
-           
-            
-            <th className="small">Company</th>
-            <th className="small">Designation</th>
-            <th className="small">Email</th>
-            <th className="small">Phone</th>
-             <th className="small">Address</th>
-            <th className="text-end small">Action</th>
+            {columns.map((column) => {
+              const isActive = sortConfig?.key === column.key;
+              const directionClass = !isActive ? "is-neutral" : sortConfig.direction === "asc" ? "is-asc" : "is-desc";
+
+              return (
+                <th key={column.key} className={column.className}>
+                  <button
+                    type="button"
+                    className="table-sort-btn"
+                    onClick={() => onSort?.(column.key)}
+                    aria-label={`Sort by ${column.label} ${isActive ? sortConfig.direction : "ascending"}`}
+                  >
+                    <span>{column.label}</span>
+                    <span className={`table-sort-btn__icon ${directionClass}`} aria-hidden="true" />
+                  </button>
+                </th>
+              );
+            })}
+            {canEdit && <th className="text-end small">Action</th>}
           </tr>
         </thead>
 
@@ -52,14 +69,16 @@ export default function ResultsTable({ results, onEdit, hasSearched, hasMore, lo
               </td>
               <td className="small">{item.phone || "not available"}</td>
              <td className="small">{item.address || "not available"}</td>
-              <td className="text-end">
-                <button
-                  className="btn btn-sm btn-primary px-3 rounded-pill"
-                  onClick={() => onEdit(item)}
-                >
-                  Edit
-                </button>
-              </td>
+              {canEdit && (
+                <td className="text-end">
+                  <button
+                    className="btn btn-sm btn-primary px-3 rounded-pill"
+                    onClick={() => onEdit?.(item)}
+                  >
+                    Edit
+                  </button>
+                </td>
+              )}
             </tr>
           ))}
         </tbody>

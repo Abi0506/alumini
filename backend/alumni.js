@@ -3,6 +3,8 @@ const exceljs = require("exceljs");
 const fs = require("fs").promises;
 const path = require("path");
 const pool = require("./db");
+const { runAiSearch } = require("./aiSearch");
+const { authenticateToken, isAdmin } = require("./auth");
 const express = require("express");
 const router = express.Router();
 
@@ -10,6 +12,39 @@ const normalizeDeptName = (value) => {
   if (!value) return "";
   return String(value).trim();
 };
+
+const searchableTextColumns = new Set([
+  "roll",
+  "name",
+  "email",
+  "designation",
+  "address",
+  "company",
+]);
+
+const buildLooseSearchValue = (value) =>
+  String(value || "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "");
+
+const buildLooseSqlExpression = (columnName) =>
+  [
+    `LOWER(COALESCE(${columnName}, ''))`,
+    "REPLACE(__VALUE__, ' ', '')",
+    "REPLACE(__VALUE__, '-', '')",
+    "REPLACE(__VALUE__, '_', '')",
+    "REPLACE(__VALUE__, '/', '')",
+    "REPLACE(__VALUE__, '\\\\', '')",
+    "REPLACE(__VALUE__, '.', '')",
+    "REPLACE(__VALUE__, ',', '')",
+    "REPLACE(__VALUE__, '&', '')",
+    "REPLACE(__VALUE__, '''', '')",
+    "REPLACE(__VALUE__, '(', '')",
+    "REPLACE(__VALUE__, ')', '')",
+  ].reduce((expression, step, index) => {
+    if (index === 0) return step;
+    return step.replace("__VALUE__", expression);
+  });
 
 const columnExists = async (columnName) => {
   try {
@@ -227,6 +262,19 @@ router.post("/search", async (req, res) => {
         }
       }
 
+      const looseSearchValue = buildLooseSearchValue(strValue);
+      const canUseLooseSearch = searchableTextColumns.has(key) && looseSearchValue.length > 0;
+      const looseExpression = canUseLooseSearch ? buildLooseSqlExpression(key) : null;
+
+      if (canUseLooseSearch) {
+        exactConditions.push(`(LOWER(${key}) LIKE LOWER(?) OR ${looseExpression} LIKE ?)`);
+        exactParams.push(`%${strValue}%`, `%${looseSearchValue}%`);
+
+        likeConditions.push(`(LOWER(${key}) LIKE LOWER(?) OR ${looseExpression} LIKE ?)`);
+        likeParams.push(`%${strValue}%`, `%${looseSearchValue}%`);
+        continue;
+      }
+
       exactConditions.push(`LOWER(${key}) LIKE LOWER(?)`);
       exactParams.push(`%${strValue}%`);
 
@@ -272,7 +320,23 @@ router.post("/search", async (req, res) => {
   }
 });
 
-router.post("/", async (req, res) => {
+router.post("/ai-search", async (req, res) => {
+  const query = String(req.body?.query || "").trim();
+  const page = Math.max(1, parseInt(req.body?.page, 10) || 1);
+
+  if (!query) {
+    return res.status(400).json({ error: "AI search query is required" });
+  }
+
+  try {
+    const result = await runAiSearch(query, page);
+    return res.json(result);
+  } catch (err) {
+    return res.status(500).json({ error: err.message || "AI search failed" });
+  }
+});
+
+router.post("/", authenticateToken, isAdmin, async (req, res) => {
   const { roll, name, phone, email, dept, designation, year, address, company } = req.body;
 
   
@@ -317,7 +381,7 @@ router.post("/", async (req, res) => {
   }
 });
 
-router.post("/import-excel", upload.single("file"), async (req, res) => {
+router.post("/import-excel", authenticateToken, isAdmin, upload.single("file"), async (req, res) => {
   if (!req.file) return res.status(400).json({ error: "No file uploaded" });
 
   const filePath = req.file.path;

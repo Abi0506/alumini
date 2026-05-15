@@ -8,6 +8,7 @@ export default function UserManagement({ isOpen, onClose }) {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(false);
+  const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
 
   useEffect(() => {
     if (isOpen) {
@@ -52,6 +53,12 @@ export default function UserManagement({ isOpen, onClose }) {
     e.preventDefault();
     setError('');
     setSuccess('');
+
+    if (!String(newUser.email || '').trim().toLowerCase().endsWith('@psgitech.ac.in')) {
+      setError('New user email must end with @psgitech.ac.in');
+      return;
+    }
+
     setLoading(true);
 
     try {
@@ -74,7 +81,6 @@ export default function UserManagement({ isOpen, onClose }) {
       setSuccess('User added successfully');
       setNewUser({ email: '', password: 'psgitech', role: 'user', name: '' });
       setShowAddUser(false);
-      setShowPassword(false);
       fetchUsers();
     } catch (err) {
       setError(err.message);
@@ -176,6 +182,50 @@ export default function UserManagement({ isOpen, onClose }) {
     }
   };
 
+  const handleBlockUser = async (userId, userName, userEmail) => {
+    const confirmMessage = `Block this user?
+
+User: ${userName}
+Email: ${userEmail}
+
+This will immediately prevent the account from logging in.`;
+
+    if (!window.confirm(confirmMessage)) return;
+
+    setLoading(true);
+
+    try {
+      const token = localStorage.getItem('token');
+
+      if (!token) {
+        throw new Error('No authentication token found. Please log in again.');
+      }
+
+      const response = await fetch(`http://localhost:5000/auth/users/${userId}/block`, {
+        method: 'PATCH',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      if (!response.ok) {
+        let errorMessage = 'Failed to block user';
+        try {
+          const data = await response.json();
+          errorMessage = data.error || errorMessage;
+        } catch (e) {
+          errorMessage = `HTTP ${response.status}: ${response.statusText}`;
+        }
+        throw new Error(errorMessage);
+      }
+
+      setSuccess(`User "${userName}" has been blocked`);
+      fetchUsers();
+    } catch (err) {
+      setError(err.message || 'Failed to block user');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <Modal show={isOpen} onHide={onClose} size="lg">
       <Modal.Header closeButton>
@@ -261,21 +311,25 @@ export default function UserManagement({ isOpen, onClose }) {
               <th>Name</th>
               <th>Email</th>
               <th>Role</th>
+              <th>Created By</th>
               <th>Created</th>
+              <th>Last Login</th>
+              <th>Last Accessed</th>
+              <th>Status</th>
               <th>Actions</th>
             </tr>
           </thead>
           <tbody>
             {users.length === 0 ? (
               <tr>
-                <td colSpan="5" className="text-center text-muted">
+                <td colSpan="9" className="text-center text-muted">
                   No users found. Add a new user to get started.
                 </td>
               </tr>
             ) : (
               users.map((user) => {
-                const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
                 const isCurrentUser = user.id === currentUser.id;
+                const isBlocked = Boolean(user.blocked_at);
                 
                 return (
                   <tr key={user.id} className={isCurrentUser ? 'table-primary' : ''}>
@@ -289,22 +343,45 @@ export default function UserManagement({ isOpen, onClose }) {
                         {user.role.toUpperCase()}
                       </span>
                     </td>
-                    <td>{new Date(user.created_at).toLocaleDateString()}</td>
+                    <td>
+                      {user.created_by_name || user.created_by_email || 'System / Legacy'}
+                    </td>
+                    <td>{new Date(user.created_at).toLocaleString()}</td>
+                    <td>{user.last_login_at ? new Date(user.last_login_at).toLocaleString() : '—'}</td>
+                    <td>{user.last_accessed_at ? new Date(user.last_accessed_at).toLocaleString() : '—'}</td>
+                    <td>
+                      <span className={`badge bg-${isBlocked ? 'dark' : 'success'}`}>
+                        {isBlocked ? 'BLOCKED' : 'ACTIVE'}
+                      </span>
+                    </td>
                     <td>
                       <div className="btn-group" role="group">
                         {!isCurrentUser && (
                           <>
-                            <Button
-                              variant="warning"
-                              size="sm"
-                              onClick={() => handleChangeRole(user.id, user.role, user.name)}
-                              disabled={loading}
-                              title={`Change to ${user.role === 'admin' ? 'User' : 'Admin'}`}
-                            >
-                              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="currentColor" viewBox="0 0 16 16">
-                                <path d="M8 8a3 3 0 1 0 0-6 3 3 0 0 0 0 6m2-3a2 2 0 1 1-4 0 2 2 0 0 1 4 0m4 8c0 1-1 1-1 1H3s-1 0-1-1 1-4 6-4 6 3 6 4m-1-.004c-.001-.246-.154-.986-.832-1.664C11.516 10.68 10.289 10 8 10s-3.516.68-4.168 1.332c-.678.678-.83 1.418-.832 1.664z"/>
-                              </svg>
-                            </Button>
+                            {currentUser.role === 'admin' && !isBlocked && (
+                              <Button
+                                variant="dark"
+                                size="sm"
+                                onClick={() => handleBlockUser(user.id, user.name, user.email)}
+                                disabled={loading}
+                                title="Block User"
+                              >
+                                Block
+                              </Button>
+                            )}
+                            {currentUser.role === 'admin' && (
+                              <Button
+                                variant="warning"
+                                size="sm"
+                                onClick={() => handleChangeRole(user.id, user.role, user.name)}
+                                disabled={loading}
+                                title={`Change to ${user.role === 'admin' ? 'User' : 'Admin'}`}
+                              >
+                                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="currentColor" viewBox="0 0 16 16">
+                                  <path d="M8 8a3 3 0 1 0 0-6 3 3 0 0 0 0 6m2-3a2 2 0 1 1-4 0 2 2 0 0 1 4 0m4 8c0 1-1 1-1 1H3s-1 0-1-1 1-4 6-4 6 3 6 4m-1-.004c-.001-.246-.154-.986-.832-1.664C11.516 10.68 10.289 10 8 10s-3.516.68-4.168 1.332c-.678.678-.83 1.418-.832 1.664z"/>
+                                </svg>
+                              </Button>
+                            )}
                             <Button
                               variant="danger"
                               size="sm"

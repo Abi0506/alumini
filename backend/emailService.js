@@ -205,3 +205,139 @@ Alumni Directory Team
 module.exports = {
   sendPasswordResetEmail,
 };
+
+const sendVerificationEmail = async (to, verifyToken, userName) => {
+  const backend = process.env.BACKEND_URL || 'http://localhost:5000';
+  const verifyUrl = `${backend}/auth/verify-email?token=${verifyToken}`;
+  const blockUrl = `${backend}/auth/block-pending-user?token=${verifyToken}`;
+
+  const mailOptions = {
+    from: process.env.EMAIL_FROM || 'Alumni Directory <noreply@alumni.com>',
+    to: to,
+    subject: 'Verify your email - Alumni Directory',
+    html: `
+      <div style="font-family: Arial, sans-serif; color: #222;">
+        <h2>Welcome${userName ? ' ' + userName : ''}!</h2>
+        <p>Thanks for being added to the Alumni Directory.</p>
+        <p>Please verify your email to activate website access. If this account was not expected, you can block it immediately.</p>
+        <p style="text-align:center; margin: 20px 0;">
+          <a href="${verifyUrl}" style="display:inline-block;padding:12px 22px;background:#007bff;color:#fff;border-radius:6px;text-decoration:none;">Verify Email</a>
+        </p>
+        <p style="text-align:center; margin: 20px 0;">
+          <a href="${blockUrl}" style="display:inline-block;padding:12px 22px;background:#dc3545;color:#fff;border-radius:6px;text-decoration:none;">Block This Account</a>
+        </p>
+        <p>If the button doesn't work, paste this link into your browser:</p>
+        <pre style="background:#f6f7f9;padding:10px;border-radius:6px;">${verifyUrl}</pre>
+        <p>If you need to block instead, use this link:</p>
+        <pre style="background:#f6f7f9;padding:10px;border-radius:6px;">${blockUrl}</pre>
+        <p>This link will expire in 24 hours.</p>
+        <p>— Alumni Directory Team</p>
+      </div>
+    `,
+    text: `Verify your account: ${verifyUrl}\nBlock your account (if this was not you): ${blockUrl}`,
+  };
+
+  try {
+    const info = await transporter.sendMail(mailOptions);
+    return info;
+  } catch (error) {
+    throw error;
+  }
+};
+
+module.exports.sendVerificationEmail = sendVerificationEmail;
+
+const sendActivationEmail = async ({ recipientEmail, activationToken, userName }) => {
+  const backend = process.env.BACKEND_URL || 'http://localhost:5000';
+  const blockUrl = `${backend}/auth/block-account?token=${activationToken}`;
+
+  const mailOptions = {
+    from: process.env.EMAIL_FROM || 'Alumni Directory <noreply@alumni.com>',
+    to: recipientEmail,
+    subject: 'Account activated - Alumni Directory',
+    html: `
+      <div style="font-family: Arial, sans-serif; color: #222; line-height: 1.6;">
+        <h2>Account activated</h2>
+        <p>Hello${userName ? ` ${userName}` : ''}, your Alumni Directory account has been activated successfully.</p>
+        <p>If this was you, no action is required.</p>
+        <p><strong>If this was not you, click the button below to block the account immediately.</strong></p>
+        <p style="text-align:center; margin: 24px 0;">
+          <a href="${blockUrl}" style="display:inline-block;padding:12px 22px;background:#dc3545;color:#fff;border-radius:6px;text-decoration:none;">Block My Account</a>
+        </p>
+        <p>If the button does not work, use this link:</p>
+        <pre style="background:#f6f7f9;padding:10px;border-radius:6px;white-space:pre-wrap;">${blockUrl}</pre>
+        <p>This block link should be used only if the login was not initiated by you.</p>
+      </div>
+    `,
+    text: `Your Alumni Directory account has been activated. If this was not you, block it here: ${blockUrl}`,
+  };
+
+  const info = await transporter.sendMail(mailOptions);
+  return info;
+};
+
+module.exports.sendActivationEmail = sendActivationEmail;
+
+const sendAccountCreationNoticeEmail = async ({ recipientEmail, creator, createdUser, adminReviewToken }) => {
+  const to = recipientEmail || process.env.EMAIL_USER;
+  const backend = process.env.BACKEND_URL || 'http://localhost:5000';
+  const confirmUrl = adminReviewToken
+    ? `${backend}/auth/admin-review?decision=confirm&token=${encodeURIComponent(adminReviewToken)}`
+    : null;
+  const blockUrl = adminReviewToken
+    ? `${backend}/auth/admin-review?decision=block&token=${encodeURIComponent(adminReviewToken)}`
+    : null;
+
+  if (!to) {
+    throw new Error('EMAIL_USER is not configured for account creation notices.');
+  }
+
+  const creatorLabel = creator?.name
+    ? `${creator.name} (${creator.email || 'unknown email'})`
+    : creator?.email || 'Unknown creator';
+
+  const mailOptions = {
+    from: process.env.EMAIL_FROM || 'Alumni Directory <noreply@alumni.com>',
+    to,
+    subject: 'New login created in Alumni Directory',
+    html: `
+      <div style="font-family: Arial, sans-serif; color: #222;">
+        <h2>New login created</h2>
+        <p>A new user account was created in the Alumni Directory under your admin access.</p>
+        <ul>
+          <li><strong>Created by:</strong> ${creatorLabel}</li>
+          <li><strong>New user:</strong> ${createdUser?.name || 'Unnamed'} (${createdUser?.email || 'no email'})</li>
+          <li><strong>Role:</strong> ${createdUser?.role || 'user'}</li>
+        </ul>
+        <p><strong>Did you create this account?</strong></p>
+        ${confirmUrl ? `
+        <p style="text-align:center; margin: 20px 0;">
+          <a href="${confirmUrl}" style="display:inline-block;padding:12px 22px;background:#198754;color:#fff;border-radius:6px;text-decoration:none;">Yes, I Created It</a>
+        </p>
+        ` : ''}
+        ${blockUrl ? `
+        <p style="text-align:center; margin: 20px 0;">
+          <a href="${blockUrl}" style="display:inline-block;padding:12px 22px;background:#dc3545;color:#fff;border-radius:6px;text-decoration:none;">No, Block This User</a>
+        </p>
+        ` : ''}
+        ${confirmUrl ? `<p>Confirm link: <br /><a href="${confirmUrl}">${confirmUrl}</a></p>` : ''}
+        ${blockUrl ? `<p>Block link: <br /><a href="${blockUrl}">${blockUrl}</a></p>` : ''}
+        <p>This is an automated notice sent for audit tracking and account safety.</p>
+      </div>
+    `,
+    text: [
+      'New login created in Alumni Directory',
+      `Created by: ${creatorLabel}`,
+      `New user: ${createdUser?.name || 'Unnamed'} (${createdUser?.email || 'no email'})`,
+      `Role: ${createdUser?.role || 'user'}`,
+      'Did you create this account?',
+      confirmUrl ? `Yes, I created it: ${confirmUrl}` : null,
+      blockUrl ? `No, block this user: ${blockUrl}` : null,
+    ].join('\n'),
+  };
+
+  const info = await transporter.sendMail(mailOptions);
+  return info;
+};
+
+module.exports.sendAccountCreationNoticeEmail = sendAccountCreationNoticeEmail;
