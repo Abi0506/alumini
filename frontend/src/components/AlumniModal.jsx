@@ -66,6 +66,11 @@ export default function AlumniModal({ isOpen, onClose, onSave, initialData }) {
   const isEdit = Boolean(initialData);
   const isConfirmed = !isEdit || (confirmText || '').trim().toUpperCase() === 'UPDATE';
 
+  const handleClose = () => {
+    setConfirmText('');
+    onClose();
+  };
+
   const handleSubmit = (e) => {
     e.preventDefault();
 
@@ -83,7 +88,7 @@ export default function AlumniModal({ isOpen, onClose, onSave, initialData }) {
   };
 
   return (
-    <Modal show={isOpen} onHide={onClose} size="lg">
+    <Modal show={isOpen} onHide={handleClose} size="lg">
       <Modal.Header closeButton>
         <Modal.Title>{initialData ? 'Edit Alumni' : 'Add New Alumni'}</Modal.Title>
       </Modal.Header>

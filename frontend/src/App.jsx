@@ -102,26 +102,53 @@ function App() {
 
   return (
     <BrowserRouter>
-      <Routes>
-        <Route path="/reset-password" element={<ResetPassword />} />
-        <Route path="/login" element={<Login onLoginSuccess={handleLoginSuccess} authError={authError} />} />
-        <Route
-          path="/"
-          element={isAuthenticated ? (
-            <AlumniDirectory user={user} onLogout={handleLogout} />
-          ) : (
-            <Login onLoginSuccess={handleLoginSuccess} authError={authError} />
-          )}
-        />
-        <Route
-          path="/alumni"
-          element={isAuthenticated ? (
-            <AlumniDirectory user={user} onLogout={handleLogout} />
-          ) : (
-            <Login onLoginSuccess={handleLoginSuccess} authError={authError} />
-          )}
-        />
-      </Routes>
+      <header className="site-header">
+        <div className="site-header__inner">
+          <img
+            className="site-header__image"
+            src="/Screenshot%202026-05-09%20220154.png"
+            alt="PSG Institute of Technology and Applied Research"
+          />
+          <div className="site-header__title">Alumni Management Software</div>
+          <div className="site-header__spacer" aria-hidden="true"></div>
+        </div>
+      </header>
+      <div className="page-shell">
+        <div className="page-content">
+          <Routes>
+            <Route path="/reset-password" element={<ResetPassword />} />
+            <Route path="/login" element={<Login onLoginSuccess={handleLoginSuccess} authError={authError} />} />
+            <Route
+              path="/"
+              element={isAuthenticated ? (
+                <AlumniDirectory user={user} onLogout={handleLogout} />
+              ) : (
+                <Login onLoginSuccess={handleLoginSuccess} authError={authError} />
+              )}
+            />
+            <Route
+              path="/alumni"
+              element={isAuthenticated ? (
+                <AlumniDirectory user={user} onLogout={handleLogout} />
+              ) : (
+                <Login onLoginSuccess={handleLoginSuccess} authError={authError} />
+              )}
+            />
+          </Routes>
+        </div>
+        <footer className="site-footer">
+          <div className="site-footer__line">© 2026 PSG Institute of Technology and Applied Research. All rights reserved.</div>
+          <div className="site-footer__line">
+            Developed by{' '}
+            <span
+              className="site-footer__accent"
+              data-tooltip={`Abishek N (2nd Year CSE)\nAdhithya J (2nd Year CSE)`}
+            >
+              SDC
+            </span>
+          </div>
+        </footer>
+      </div>
     </BrowserRouter>
   );
 }

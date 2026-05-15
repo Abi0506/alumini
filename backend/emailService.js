@@ -14,13 +14,13 @@ transporter.verify(function (error, success) {
   // email transporter verification - errors handled where send is attempted
 });
 
-const sendPasswordResetEmail = async (to, resetToken, userName) => {
-  const resetUrl = `${process.env.FRONTEND_URL}/reset-password?token=${resetToken}`;
+const sendPasswordResetEmail = async (to, resetCode, userName) => {
+  const resetUrl = `${process.env.FRONTEND_URL}/reset-password?token=${resetCode}`;
   
   const mailOptions = {
     from: process.env.EMAIL_FROM || 'Alumni Directory <noreply@alumni.com>',
     to: to,
-    subject: 'Password Reset Request - Alumni Directory',
+    subject: 'Password Reset Verification Code - Alumni Directory',
     html: `
 <!DOCTYPE html>
 <html>
@@ -131,14 +131,14 @@ const sendPasswordResetEmail = async (to, resetToken, userName) => {
 
       <p>
         We received a request to reset your password for your Alumni Directory account.
-        Click the button below to securely create a new password.
+        Use the verification code below to continue.
       </p>
 
-      <div style="text-align:center;">
-        <a href="${resetUrl}" class="button">Reset Password</a>
+      <div style="text-align:center; font-size:26px; font-weight:700; letter-spacing:6px; margin: 20px 0;">
+        ${resetCode}
       </div>
 
-      <p>If the button doesn't work, copy and paste this link into your browser:</p>
+      <p>If you prefer, you can also open the reset page directly:</p>
 
       <div class="link-box">
         ${resetUrl}
@@ -147,7 +147,7 @@ const sendPasswordResetEmail = async (to, resetToken, userName) => {
       <div class="warning">
         <strong>Important Security Information</strong>
         <ul style="margin-top:10px; padding-left:18px;">
-          <li>This link expires in 1 hour</li>
+          <li>This code expires in 1 hour</li>
           <li>If you didn’t request this, you can safely ignore this email</li>
           <li>Your password will not change unless you complete the process</li>
         </ul>
@@ -182,10 +182,12 @@ Hello ${userName || 'User'},
 
 We received a request to reset your password for your Alumni Directory account.
 
-To reset your password, please visit the following link:
-${resetUrl}
+  Verification code: ${resetCode}
 
-This link will expire in 1 hour.
+  You can also open the reset page here:
+  ${resetUrl}
+
+  This code will expire in 1 hour.
 
 If you didn't request this password reset, please ignore this email. Your password will not change unless you click the link above and create a new password.
 

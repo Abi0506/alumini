@@ -20,6 +20,13 @@ export default function Login({ onLoginSuccess, authError }) {
   const isPsgitechEmail = (value) =>
     String(value || '').trim().toLowerCase().endsWith('@psgitech.ac.in');
 
+  useEffect(() => {
+    document.body.classList.add('login-bg');
+    return () => {
+      document.body.classList.remove('login-bg');
+    };
+  }, []);
+
   const handleEmailLogin = async (e) => {
     e.preventDefault();
     setError('');
@@ -69,7 +76,7 @@ export default function Login({ onLoginSuccess, authError }) {
       centered
     >
       <Modal.Header>
-        <Modal.Title>Alumni Directory - Login</Modal.Title>
+        <Modal.Title>Alumni Management Software - Login</Modal.Title>
       </Modal.Header>
       <Modal.Body>
         {error && (
@@ -133,18 +140,7 @@ export default function Login({ onLoginSuccess, authError }) {
               </Button>
             </Form>
 
-            <div className="text-center mb-3">
-              <span className="text-muted">OR</span>
-            </div>
-
-            <Button
-              variant="outline-primary"
-              className="w-100"
-              onClick={handleGoogleLogin}
-              disabled={loading}
-            >
-              Sign in with Google
-            </Button>
+            
           </>
         ) : (
           <ForgotPasswordForm
@@ -170,9 +166,13 @@ export default function Login({ onLoginSuccess, authError }) {
 
 function ForgotPasswordForm({ onBack, onSuccess }) {
   const [resetEmail, setResetEmail] = useState('');
+  const [resetCode, setResetCode] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [resetError, setResetError] = useState('');
   const [resetSuccess, setResetSuccess] = useState('');
   const [loading, setLoading] = useState(false);
+  const [step, setStep] = useState('request');
 
   const handleRequestReset = async (e) => {
     e.preventDefault();
@@ -194,13 +194,53 @@ function ForgotPasswordForm({ onBack, onSuccess }) {
       }
 
       setResetSuccess(
-        'Reset link sent to your email. Please check your inbox.'
+        'Verification code sent to your email. Please check your inbox.'
       );
+      setStep('verify');
 
+    } catch (err) {
+      setResetError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleVerifyReset = async (e) => {
+    e.preventDefault();
+    setResetError('');
+    setResetSuccess('');
+
+    if (newPassword.length < 6) {
+      setResetError('Password must be at least 6 characters');
+      return;
+    }
+
+    if (newPassword !== confirmPassword) {
+      setResetError('Passwords do not match');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const response = await fetch('http://localhost:5000/auth/reset-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: resetCode.trim(), newPassword }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to reset password');
+      }
+
+      setResetSuccess('Password reset successfully. You can log in now.');
+      setResetCode('');
+      setNewPassword('');
+      setConfirmPassword('');
       setTimeout(() => {
         onSuccess();
-      }, 2000);
-
+      }, 1200);
     } catch (err) {
       setResetError(err.message);
     } finally {
@@ -224,31 +264,93 @@ function ForgotPasswordForm({ onBack, onSuccess }) {
         </Alert>
       )}
 
-      <Form onSubmit={handleRequestReset}>
-        <Form.Group className="mb-3">
-          <Form.Label>Email Address</Form.Label>
-          <Form.Control
-            type="email"
-            placeholder="Enter your email"
-            value={resetEmail}
-            onChange={(e) => setResetEmail(e.target.value)}
-            required
-          />
-          <Form.Text className="d-block mt-2 text-muted">
-            Enter the email associated with your account, and we'll send you a
-            link to reset your password.
-          </Form.Text>
-        </Form.Group>
+      {step === 'request' ? (
+        <Form onSubmit={handleRequestReset}>
+          <Form.Group className="mb-3">
+            <Form.Label>Email Address</Form.Label>
+            <Form.Control
+              type="email"
+              placeholder="Enter your email"
+              value={resetEmail}
+              onChange={(e) => setResetEmail(e.target.value)}
+              required
+            />
+            <Form.Text className="d-block mt-2 text-muted">
+              Enter the email associated with your account, and we'll send you a
+              verification code.
+            </Form.Text>
+          </Form.Group>
 
-        <Button
-          variant="primary"
-          type="submit"
-          className="w-100 mb-3"
-          disabled={loading}
-        >
-          {loading ? 'Sending...' : 'Send Reset Link'}
-        </Button>
-      </Form>
+          <Button
+            variant="primary"
+            type="submit"
+            className="w-100 mb-3"
+            disabled={loading}
+          >
+            {loading ? 'Sending...' : 'Send Verification Code'}
+          </Button>
+        </Form>
+      ) : (
+        <Form onSubmit={handleVerifyReset}>
+          <Form.Group className="mb-3">
+            <Form.Label>Verification Code</Form.Label>
+            <Form.Control
+              type="text"
+              placeholder="Enter the 6-digit code"
+              value={resetCode}
+              onChange={(e) => setResetCode(e.target.value)}
+              required
+              inputMode="numeric"
+            />
+          </Form.Group>
+
+          <Form.Group className="mb-3">
+            <Form.Label>New Password</Form.Label>
+            <Form.Control
+              type="password"
+              placeholder="New password"
+              value={newPassword}
+              onChange={(e) => setNewPassword(e.target.value)}
+              required
+              minLength={6}
+            />
+          </Form.Group>
+
+          <Form.Group className="mb-3">
+            <Form.Label>Confirm Password</Form.Label>
+            <Form.Control
+              type="password"
+              placeholder="Confirm new password"
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              required
+              minLength={6}
+            />
+          </Form.Group>
+
+          <Button
+            variant="primary"
+            type="submit"
+            className="w-100 mb-3"
+            disabled={loading}
+          >
+            {loading ? 'Saving...' : 'Reset Password'}
+          </Button>
+
+          <Button
+            variant="outline-secondary"
+            className="w-100"
+            onClick={() => {
+              setStep('request');
+              setResetSuccess('');
+              setResetError('');
+            }}
+            disabled={loading}
+          >
+            Resend Code
+          </Button>
+        </Form>
+      )}
 
       <Button
         variant="secondary"

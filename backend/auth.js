@@ -573,8 +573,8 @@ router.post('/forgot-password', async (req, res) => {
 
     const user = users[0];
 
-    const resetToken = crypto.randomBytes(32).toString('hex');
-    const resetTokenHash = crypto.createHash('sha256').update(resetToken).digest('hex');
+    const resetCode = String(Math.floor(100000 + Math.random() * 900000));
+    const resetTokenHash = crypto.createHash('sha256').update(resetCode).digest('hex');
     const resetTokenExpires = new Date(Date.now() + 3600000);
 
     await pool.execute(
@@ -589,7 +589,7 @@ router.post('/forgot-password', async (req, res) => {
 
     if (hasEmailConfig) {
       try {
-        await sendPasswordResetEmail(email, resetToken, user.name);
+        await sendPasswordResetEmail(email, resetCode, user.name);
       } catch (emailErr) {
         // Email send error
       }
@@ -600,8 +600,8 @@ router.post('/forgot-password', async (req, res) => {
     res.json({ 
       success: true, 
       message: hasEmailConfig 
-        ? 'Password reset link sent to email' 
-        : 'Test mode: Check server console for reset token' 
+        ? 'Verification code sent to email' 
+        : 'Test mode: Check server console for reset code' 
     });
   } catch (err) {
     // Forgot password error

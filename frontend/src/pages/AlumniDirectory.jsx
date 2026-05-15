@@ -1,5 +1,5 @@
 
-import React, { useState, useCallback, useMemo } from "react";
+import React, { useState, useCallback, useMemo, useEffect } from "react";
 import { searchAlumni, searchAlumniWithAI, saveAlumni } from "../api/api";
 import "bootstrap/dist/css/bootstrap.min.css";
 import "bootstrap/dist/js/bootstrap.bundle.min.js";
@@ -33,6 +33,13 @@ export default function AlumniDirectory({ user, onLogout }) {
   const [restoreFormTrigger, setRestoreFormTrigger] = useState(0);
   const [showUserManagement, setShowUserManagement] = useState(false);
   const [exportingPdf, setExportingPdf] = useState(false);
+
+  useEffect(() => {
+    document.body.classList.add('main-bg');
+    return () => {
+      document.body.classList.remove('main-bg');
+    };
+  }, []);
 
   const normalizeEmail = (value = "") => String(value || "").trim().toLowerCase();
   const normalizePhone = (value = "") => String(value || "").replace(/\D/g, "");
@@ -372,12 +379,11 @@ export default function AlumniDirectory({ user, onLogout }) {
         <main className="container content" style={{ maxWidth: "1100px" }}>
           <div className="d-flex justify-content-between align-items-center mb-4 mt-4">
             <div>
-              <h4 className="mb-0 fw-bold">Alumni Directory</h4>
               {user && (
-                <small className="text-muted">
+                <div className="welcome-text text-muted">
                   Welcome, {user.name} 
                   {user.role === 'admin' && <span className="badge bg-danger ms-2">Admin</span>}
-                </small>
+                </div>
               )}
             </div>
             <div className="d-flex gap-2 align-items-center">

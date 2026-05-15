@@ -4,7 +4,8 @@ import { Modal, Button, Form, Table, Alert } from 'react-bootstrap';
 export default function UserManagement({ isOpen, onClose }) {
   const [users, setUsers] = useState([]);
   const [showAddUser, setShowAddUser] = useState(false);
-  const [newUser, setNewUser] = useState({ email: '', password: 'psgitech', role: 'user', name: '' });
+  const [newUser, setNewUser] = useState({ email: '', password: '', role: 'user', name: '' });
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(false);
@@ -79,7 +80,7 @@ export default function UserManagement({ isOpen, onClose }) {
       }
 
       setSuccess('User added successfully');
-      setNewUser({ email: '', password: 'psgitech', role: 'user', name: '' });
+      setNewUser({ email: '', password: '', role: 'user', name: '' });
       setShowAddUser(false);
       fetchUsers();
     } catch (err) {
@@ -243,7 +244,8 @@ This will immediately prevent the account from logging in.`;
               onClick={() => {
                 setShowAddUser(!showAddUser);
                 if (showAddUser) {
-                  setNewUser({ email: '', password: 'psgitech', role: 'user', name: '' });
+                  setNewUser({ email: '', password: '', role: 'user', name: '' });
+                  setShowPassword(false);
                   setError('');
                 }
               }}
@@ -280,13 +282,22 @@ This will immediately prevent the account from logging in.`;
               />
             </Form.Group>
 
-            <div className="mb-3 p-2 bg-light border rounded">
-              <small className="text-muted">
-                <strong>Password:</strong> All new users are created with default password <code>psgitech</code>
-              </small>
-              <br />
-              <small className="text-muted">Users can change their password after first login or via "Forgot Password"</small>
-            </div>
+            <Form.Group className="mb-3">
+              <Form.Label>Password</Form.Label>
+              <Form.Control
+                type={showPassword ? 'text' : 'password'}
+                value={newUser.password}
+                onChange={(e) => setNewUser({ ...newUser, password: e.target.value })}
+                required
+              />
+              <Form.Check
+                type="checkbox"
+                label="Show password"
+                checked={showPassword}
+                onChange={(e) => setShowPassword(e.target.checked)}
+                className="mt-2"
+              />
+            </Form.Group>
 
             <Form.Group className="mb-3">
               <Form.Label>Role</Form.Label>
