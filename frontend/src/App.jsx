@@ -1,7 +1,8 @@
 
 import React, { useState, useEffect } from 'react';
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import AlumniDirectory from './pages/AlumniDirectory';
+import ProfessionalCircle from './pages/ProfessionalCircle';
 import Login from './components/Login';
 import ResetPassword from './pages/ResetPassword';
 
@@ -117,7 +118,7 @@ function App() {
         <div className="page-content">
           <Routes>
             <Route path="/reset-password" element={<ResetPassword />} />
-            <Route path="/login" element={<Login onLoginSuccess={handleLoginSuccess} authError={authError} />} />
+            <Route path="/login" element={isAuthenticated ? <Navigate to="/" replace /> : <Login onLoginSuccess={handleLoginSuccess} authError={authError} />} />
             <Route
               path="/"
               element={isAuthenticated ? (
@@ -130,6 +131,14 @@ function App() {
               path="/alumni"
               element={isAuthenticated ? (
                 <AlumniDirectory user={user} onLogout={handleLogout} />
+              ) : (
+                <Login onLoginSuccess={handleLoginSuccess} authError={authError} />
+              )}
+            />
+            <Route
+              path="/professional"
+              element={isAuthenticated ? (
+                <ProfessionalCircle user={user} onLogout={handleLogout} />
               ) : (
                 <Login onLoginSuccess={handleLoginSuccess} authError={authError} />
               )}

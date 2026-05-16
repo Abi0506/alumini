@@ -15,9 +15,11 @@ app.use(express.json());
 app.use(cors(corsOptions));
 
 const alumniRouter = require('./alumni');
+const professionalRouter = require('./professional');
 const authRouter = require('./auth');
 
 app.use('/alumni', alumniRouter);
+app.use('/professional', professionalRouter);
 app.use('/auth', authRouter);
 
 const PORT  = process.env.PORT || 5000;

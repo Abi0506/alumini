@@ -1,5 +1,6 @@
 
 import React, { useState, useCallback, useMemo, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { searchAlumni, searchAlumniWithAI, saveAlumni } from "../api/api";
 import "bootstrap/dist/css/bootstrap.min.css";
 import "bootstrap/dist/js/bootstrap.bundle.min.js";
@@ -13,6 +14,7 @@ import ExcelUpload from "../components/ExcelUpload";
 import UserManagement from "../components/UserManagement";
 
 export default function AlumniDirectory({ user, onLogout }) {
+  const navigate = useNavigate();
   const canEdit = user?.role === "admin";
   const [results, setResults] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -33,6 +35,7 @@ export default function AlumniDirectory({ user, onLogout }) {
   const [restoreFormTrigger, setRestoreFormTrigger] = useState(0);
   const [showUserManagement, setShowUserManagement] = useState(false);
   const [exportingPdf, setExportingPdf] = useState(false);
+  const [activeTab, setActiveTab] = useState("alumni");
 
   useEffect(() => {
     document.body.classList.add('main-bg');
@@ -122,16 +125,6 @@ export default function AlumniDirectory({ user, onLogout }) {
 
   const handleSearch = async (filters, skipEmptyCheck = false) => {
     
-    if (!skipEmptyCheck) {
-      const hasData = Object.values(filters).some(val => val && String(val).trim() !== '');
-      if (!hasData) {
-        setHasSearched(false);
-        setResults([]);
-        setErrorMsg("");
-        setSearchInsight(null);
-        return;
-      }
-    }
 
     setHasSearched(true);
     setLoading(true);
@@ -424,102 +417,146 @@ export default function AlumniDirectory({ user, onLogout }) {
             </div>
           </div>
 
-          <div className="panel panel--search mb-4">
-            <div className="section-title">Search Filters</div>
-            <SearchForm 
-              onSearch={handleSearch} 
-              onAISearch={handleAISearch}
-              onReset={handleReset} 
-              loading={loading} 
-              clearTrigger={clearFormTrigger}
-              restoreTrigger={restoreFormTrigger}
-              restoreData={{
-                filters: lastSearchRequest?.type === "standard" ? lastSearchRequest.filters : null,
-                aiQuery: lastSearchRequest?.type === "ai" ? lastSearchRequest.aiQuery : "",
-              }}
-            />
+          <div className="d-flex justify-content-center mb-4">
+            <div className="btn-group" role="group" aria-label="Directory Mode Switch">
+              <input 
+                type="radio" 
+                className="btn-check" 
+                name="directoryMode" 
+                id="modeAlumini" 
+                autoComplete="off" 
+                checked={activeTab === 'alumni'} 
+                onChange={() => setActiveTab('alumni')} 
+              />
+              <label className="btn btn-outline-primary px-4" htmlFor="modeAlumini">Alumni</label>
+
+              <input 
+                type="radio" 
+                className="btn-check" 
+                name="directoryMode" 
+                id="modeProfessional" 
+                autoComplete="off" 
+                checked={activeTab === 'professional'} 
+                onChange={() => {
+                  setActiveTab('professional');
+                  navigate('/professional');
+                }} 
+              />
+              <label className="btn btn-outline-primary px-4" htmlFor="modeProfessional">Professional Circle</label>
+            </div>
           </div>
 
-          {hasSearched && (
+          {activeTab === 'alumni' ? (
             <>
-              {errorMsg && (
-                <div
-                  className="alert alert-danger alert-dismissible fade show rounded-4"
-                  role="alert"
-                >
-                  {errorMsg}
-                  <button
-                    type="button"
-                    className="btn-close"
-                    onClick={() => setErrorMsg("")}
-                    aria-label="Close"
-                  ></button>
-                </div>
-              )}
-
-              <div className="results-header mb-3">
-                <h5 className="mb-0 fw-semibold">
-                  Results
-                  {results.length > 0 && (
-                    <span className="badge-soft ms-2">
-                      {results.length} / {totalCount}
-                    </span>
-                  )}
-                </h5>
-                {results.length > 0 && (
-                  <button
-                    className="btn btn-outline-primary btn-sm"
-                    onClick={handleDownloadPdf}
-                    disabled={exportingPdf}
-                  >
-                    {exportingPdf ? "Preparing PDF..." : "Download PDF"}
-                  </button>
-                )}
+              <div className="panel panel--search mb-4">
+                <div className="section-title">Search Filters</div>
+                <SearchForm 
+                  onSearch={handleSearch} 
+                  onAISearch={handleAISearch}
+                  onReset={handleReset} 
+                  loading={loading} 
+                  clearTrigger={clearFormTrigger}
+                  restoreTrigger={restoreFormTrigger}
+                  restoreData={{
+                    filters: lastSearchRequest?.type === "standard" ? lastSearchRequest.filters : null,
+                    aiQuery: lastSearchRequest?.type === "ai" ? lastSearchRequest.aiQuery : "",
+                  }}
+                />
               </div>
 
-              {searchInsight?.summary && (
-                <div className="alert alert-info rounded-4 ai-search-summary" role="status">
-                  <strong>AI interpretation:</strong> {searchInsight.summary}
-                </div>
-              )}
-
-              <div
-                className="results-panel overflow-auto"
-                style={{
-                  maxHeight: "calc(100vh - 320px)",
-                  minHeight: "420px",
-                }}
-              >
-                {loading ? (
-                  <div className="d-flex justify-content-center align-items-center h-100 py-5">
-                    <div className="text-center">
-                      <div
-                        className="spinner-border text-primary mb-3"
-                        role="status"
-                        style={{ width: "3rem", height: "3rem" }}
-                      />
-                      <p className="text-muted mb-0">Searching...</p>
+              {hasSearched && (
+                <>
+                  {errorMsg && (
+                    <div
+                      className="alert alert-danger alert-dismissible fade show rounded-4"
+                      role="alert"
+                    >
+                      {errorMsg}
+                      <button
+                        type="button"
+                        className="btn-close"
+                        onClick={() => setErrorMsg("")}
+                        aria-label="Close"
+                      ></button>
                     </div>
+                  )}
+
+                  <div className="results-header mb-3">
+                    <h5 className="mb-0 fw-semibold">
+                      Results
+                      {results.length > 0 && (
+                        <span className="badge-soft ms-2">
+                          {results.length} / {totalCount}
+                        </span>
+                      )}
+                    </h5>
+                    {canEdit && results.length > 0 && (
+                      <button
+                        className="btn btn-outline-primary btn-sm"
+                        onClick={handleDownloadPdf}
+                        disabled={exportingPdf}
+                      >
+                        {exportingPdf ? "Preparing PDF..." : "Download PDF"}
+                      </button>
+                    )}
                   </div>
-                ) : (
-                  <ResultsTable
-                    results={sortedResults}
-                    hasSearched={hasSearched}
-                    hasMore={hasMore}
-                    loadingMore={loadingMore}
-                    onLoadMore={loadMore}
-                    sortConfig={sortConfig}
-                    onSort={handleSort}
-                    canEdit={canEdit}
-                    onEdit={(item) => {
-                      if (!canEdit) return;
-                      setSelectedAlumni(item);
-                      setModalOpen(true);
+
+                  {searchInsight?.summary && (
+                    <div className="alert alert-info rounded-4 ai-search-summary" role="status">
+                      <strong>AI interpretation:</strong> {searchInsight.summary}
+                    </div>
+                  )}
+
+                  <div
+                    className="results-panel overflow-auto"
+                    style={{
+                      maxHeight: "calc(100vh - 320px)",
+                      minHeight: "420px",
                     }}
-                  />
-                )}
-              </div>
+                  >
+                    {loading ? (
+                      <div className="d-flex justify-content-center align-items-center h-100 py-5">
+                        <div className="text-center">
+                          <div
+                            className="spinner-border text-primary mb-3"
+                            role="status"
+                            style={{ width: "3rem", height: "3rem" }}
+                          />
+                          <p className="text-muted mb-0">Searching...</p>
+                        </div>
+                      </div>
+                    ) : (
+                      <ResultsTable
+                        results={sortedResults}
+                        hasSearched={hasSearched}
+                        hasMore={hasMore}
+                        loadingMore={loadingMore}
+                        onLoadMore={loadMore}
+                        sortConfig={sortConfig}
+                        onSort={handleSort}
+                        canEdit={canEdit}
+                        onEdit={(item) => {
+                          if (!canEdit) return;
+                          setSelectedAlumni(item);
+                          setModalOpen(true);
+                        }}
+                      />
+                    )}
+                  </div>
+                </>
+              )}
             </>
+          ) : (
+            <div className="panel panel--search mb-4 text-center py-5">
+              <h5 className="text-muted mb-3">Professional Circle</h5>
+              <p className="text-secondary">Open the Professional Circle page to search and manage contacts.</p>
+              <button
+                className="btn btn-outline-primary btn-sm"
+                onClick={() => navigate('/professional')}
+              >
+                Go to Professional Circle
+              </button>
+            </div>
           )}
         </main>
       </div>
